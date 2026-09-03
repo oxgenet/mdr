@@ -31,6 +31,14 @@ struct Cli {
     /// Create a default config file and exit
     #[arg(long)]
     init: bool,
+
+    /// Start in editor mode (webview backend). Default is viewer mode.
+    #[arg(short = 'e', long)]
+    edit: bool,
+
+    /// Show the table of contents sidebar at startup (webview backend)
+    #[arg(long)]
+    toc: bool,
 }
 
 fn print_backends() {
@@ -168,6 +176,12 @@ fn main() {
         }
     };
 
+    #[cfg(feature = "webview-backend")]
+    let view_opts = backend::webview::ViewOptions {
+        editor: cli.edit || cfg.mode.as_deref() == Some("editor"),
+        toc: cli.toc || cfg.toc.unwrap_or(false),
+    };
+
     let backend_str = cli.backend
         .or(cfg.backend)
         .unwrap_or_else(|| "auto".to_string());
@@ -188,7 +202,7 @@ fn main() {
         }
 
         #[cfg(feature = "webview-backend")]
-        "webview" => backend::webview::run(file),
+        "webview" => backend::webview::run(file, view_opts),
 
         #[cfg(not(feature = "webview-backend"))]
         "webview" => {

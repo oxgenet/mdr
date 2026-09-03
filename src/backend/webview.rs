@@ -1,7 +1,7 @@
 use muda::{Menu, PredefinedMenuItem, Submenu};
 use std::path::PathBuf;
 use tao::event::{Event, WindowEvent};
-use tao::event_loop::{ControlFlow, EventLoop};
+use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder};
 use tao::window::WindowBuilder;
 use wry::WebViewBuilder;
 
@@ -9,7 +9,39 @@ use crate::core::markdown::{parse_markdown, GITHUB_CSS};
 use crate::core::toc;
 use crate::vlog;
 
-pub fn run(file_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+/// Startup UI options for the webview backend.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ViewOptions {
+    /// Start in editor mode (source pane + live preview). Default: viewer mode.
+    pub editor: bool,
+    /// Show the table-of-contents sidebar at startup. Default: hidden.
+    pub toc: bool,
+}
+
+/// Messages sent from the page (via `window.ipc.postMessage`) to the event loop.
+#[derive(Debug)]
+enum UserEvent {
+    /// Re-render the preview from unsaved editor text.
+    Preview(String),
+    /// Write editor text back to the opened file.
+    Save(String),
+}
+
+/// Build the JS snippet that swaps in freshly rendered body + TOC.
+fn render_update_js(content: &str, base_dir: &std::path::Path) -> String {
+    let new_html = parse_markdown(content);
+    let new_html = resolve_local_images(&new_html, base_dir);
+    let new_toc = toc::extract_toc(content);
+    let toc_html = build_toc_html(&new_toc);
+    let body_json = serde_json::to_string(&new_html).unwrap_or_default();
+    let toc_json = serde_json::to_string(&toc_html).unwrap_or_default();
+    format!(
+        "document.querySelector('.content').innerHTML = {}; document.querySelector('.sidebar ul').innerHTML = {}; if (window.hljs) hljs.highlightAll(); if (window.mermaid) {{ try {{ mermaid.run(); }} catch (e) {{}} }}",
+        body_json, toc_json
+    )
+}
+
+pub fn run(file_path: PathBuf, opts: ViewOptions) -> Result<(), Box<dyn std::error::Error>> {
     // Canonicalize the file path first so parent() always gives an absolute directory.
     // Without this, a bare filename like "README.md" gives parent() = "" (empty),
     // which breaks relative image resolution when CWD differs from expected.
@@ -48,13 +80,26 @@ pub fn run(file_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     }
     let html_body = resolve_local_images(&html_body, &base_dir);
     let toc_entries = toc::extract_toc(&markdown_content);
-    let full_html = build_html(&html_body, &toc_entries);
+    let full_html = build_html(&html_body, &toc_entries, &markdown_content, opts);
 
     let watcher_rx = crate::core::watcher::watch_file(&file_path)?;
 
     let (icon_rgba, icon_w, icon_h) = crate::core::icon::load_icon_rgba();
 
-    let event_loop = EventLoop::new();
+    let event_loop: EventLoop<UserEvent> = EventLoopBuilder::<UserEvent>::with_user_event().build();
+    let proxy = event_loop.create_proxy();
+    let ipc_handler = move |req: wry::http::Request<String>| {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(req.body()) else {
+            return;
+        };
+        let text = v["text"].as_str().unwrap_or("").to_string();
+        let ev = match v["cmd"].as_str().unwrap_or("") {
+            "preview" => UserEvent::Preview(text),
+            "save" => UserEvent::Save(text),
+            _ => return,
+        };
+        let _ = proxy.send_event(ev);
+    };
 
     // Create a native Edit menu so that Cmd+C/Ctrl+C/V/X/A work on all platforms
     let menu = Menu::new();
@@ -88,6 +133,7 @@ pub fn run(file_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
             .with_html(&full_html)
             .with_clipboard(true)
             .with_devtools(true)
+            .with_ipc_handler(ipc_handler)
             .build_gtk(vbox)?
     };
     #[cfg(not(target_os = "linux"))]
@@ -95,26 +141,22 @@ pub fn run(file_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         .with_html(&full_html)
         .with_clipboard(true)
         .with_devtools(true)
+        .with_ipc_handler(ipc_handler)
         .build(&window)?;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
-        // Check for file changes
+        // Check for file changes (external edits or our own save)
         if watcher_rx.try_recv().is_ok() {
             while watcher_rx.try_recv().is_ok() {}
             if let Ok(content) = std::fs::read_to_string(&file_path) {
-                let new_html = parse_markdown(&content);
-                let new_html = resolve_local_images(&new_html, &base_dir);
-                let new_toc = toc::extract_toc(&content);
-                let toc_html = build_toc_html(&new_toc);
-
-                let body_json = serde_json::to_string(&new_html).unwrap_or_default();
-                let toc_json = serde_json::to_string(&toc_html).unwrap_or_default();
-                let js = format!(
-                    "document.querySelector('.content').innerHTML = {}; document.querySelector('.sidebar ul').innerHTML = {}; if (window.hljs) hljs.highlightAll();",
-                    body_json, toc_json
-                );
+                let mut js = render_update_js(&content, &base_dir);
+                let src_json = serde_json::to_string(&content).unwrap_or_default();
+                js.push_str(&format!(
+                    " if (window.__mdrSetEditor) __mdrSetEditor({});",
+                    src_json.replace("</", "<\\/")
+                ));
                 let _ = webview.evaluate_script(&js);
             }
         }
@@ -124,9 +166,31 @@ pub fn run(file_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
                 event: WindowEvent::CloseRequested,
                 ..
             } => *control_flow = ControlFlow::Exit,
+            Event::UserEvent(UserEvent::Preview(text)) => {
+                let js = render_update_js(&text, &base_dir);
+                let _ = webview.evaluate_script(&js);
+            }
+            Event::UserEvent(UserEvent::Save(text)) => {
+                let js = match std::fs::write(&file_path, &text) {
+                    Ok(()) => {
+                        vlog!("webview: saved {} bytes to {}", text.len(), file_path.display());
+                        "if (window.__mdrSaved) __mdrSaved(null);".to_string()
+                    }
+                    Err(e) => {
+                        let msg = serde_json::to_string(&e.to_string()).unwrap_or_default();
+                        format!("if (window.__mdrSaved) __mdrSaved({});", msg)
+                    }
+                };
+                let _ = webview.evaluate_script(&js);
+            }
             _ => {}
         }
     });
+}
+
+/// Escape text for safe embedding inside a `<textarea>` element.
+fn html_escape_text(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
 /// Resolve local image paths to inline base64 data URIs.
@@ -425,8 +489,23 @@ fn rasterize_svg_to_png_data_uri(
     Ok(format!("data:image/png;base64,{}", b64))
 }
 
-fn build_html(body: &str, toc_entries: &[toc::TocEntry]) -> String {
+fn build_html(
+    body: &str,
+    toc_entries: &[toc::TocEntry],
+    source: &str,
+    opts: ViewOptions,
+) -> String {
     let toc_html = build_toc_html(toc_entries);
+    let mut body_class = String::new();
+    if !opts.toc {
+        body_class.push_str("no-toc ");
+    }
+    if opts.editor {
+        body_class.push_str("editing ");
+    }
+    // A leading newline inside <textarea> is dropped by the HTML parser, so add one
+    // to preserve a source that itself starts with a newline.
+    let editor_text = format!("\n{}", html_escape_text(source));
     // Only include mermaid.js if there are fallback blocks that need JS rendering
     let mermaid_script = if body.contains(r#"class="mermaid""#) {
         format!(
@@ -479,16 +558,138 @@ fn build_html(body: &str, toc_entries: &[toc::TocEntry]) -> String {
 #expand-content svg {{ width: 95vw; height: 95vh; }}
 .expandable img, .expandable svg {{ cursor: zoom-in; }}
 .content svg {{ width: 100% !important; height: auto !important; display: block; }}
+
+/* --- viewer / editor modes --- */
+body.no-toc .sidebar {{ display: none; }}
+body.no-toc .content {{ margin-left: 0; }}
+body.no-toc:not(.editing) .content {{ margin: 0 auto; }}
+#editor {{
+    display: none; position: fixed; top: 0; left: 0;
+    width: 50vw; height: 100vh; box-sizing: border-box;
+    margin: 0; padding: 32px 20px 3rem; border: none; border-right: 1px solid var(--border);
+    resize: none; outline: none; white-space: pre; overflow: auto;
+    background: var(--code-bg); color: var(--fg);
+    font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    tab-size: 4;
+}}
+body.editing #editor {{ display: block; }}
+body.editing .sidebar {{ display: none; }}
+body.editing .content {{ margin-left: 50vw; max-width: none; }}
+#kebab {{ position: fixed; top: 10px; right: 14px; z-index: 1000; }}
+#kebab-btn {{
+    width: 30px; height: 30px; border-radius: 6px; cursor: pointer;
+    border: 1px solid transparent; background: transparent; color: var(--blockquote);
+    font-size: 18px; line-height: 1; padding: 0; opacity: 0.55; transition: opacity 0.15s;
+}}
+#kebab-btn:hover, #kebab.open #kebab-btn {{ opacity: 1; background: var(--sidebar-hover); border-color: var(--border); }}
+#kebab-menu {{
+    display: none; position: absolute; right: 0; top: 36px; min-width: 200px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18); padding: 6px 0; overflow: hidden;
+}}
+#kebab.open #kebab-menu {{ display: block; }}
+#kebab-menu button {{
+    display: block; width: 100%; text-align: left; padding: 8px 14px;
+    background: none; border: none; color: var(--fg); cursor: pointer; font-size: 13px;
+}}
+#kebab-menu button:hover {{ background: var(--sidebar-hover); }}
+#kebab-menu button.editor-only {{ display: none; }}
+body.editing #kebab-menu button.editor-only {{ display: block; }}
+#kebab-menu .sep {{ height: 1px; background: var(--border); margin: 6px 0; }}
+#kebab-menu .hint {{ float: right; color: var(--blockquote); font-size: 11px; margin-left: 16px; }}
+#toast {{
+    display: none; position: fixed; bottom: 18px; right: 18px; z-index: 1000;
+    padding: 8px 14px; border-radius: 6px; font-size: 13px;
+    background: var(--code-bg); color: var(--fg); border: 1px solid var(--border);
+}}
 </style>
 </head>
-<body>
+<body class="{body_class}">
 <nav class="sidebar">
 <p class="sidebar-title">Table of Contents</p>
 <ul>{toc}</ul>
 </nav>
+<textarea id="editor" spellcheck="false" autocomplete="off">{editor_text}</textarea>
 <div class="content">
 {body}
 </div>
+<div id="kebab">
+    <button id="kebab-btn" title="Menu" aria-label="Menu">&#8942;</button>
+    <div id="kebab-menu">
+        <button data-act="mode"></button>
+        <button data-act="toc"></button>
+        <div class="sep editor-only"></div>
+        <button data-act="save" class="editor-only">Save <span class="hint" id="save-hint"></span></button>
+    </div>
+</div>
+<div id="toast"></div>
+<script>
+(function() {{
+    var body = document.body;
+    var ta = document.getElementById('editor');
+    var kebab = document.getElementById('kebab');
+    var btn = document.getElementById('kebab-btn');
+    var menu = document.getElementById('kebab-menu');
+    var toast = document.getElementById('toast');
+    var isMac = navigator.platform.indexOf('Mac') === 0;
+    document.getElementById('save-hint').textContent = isMac ? '⌘S' : 'Ctrl+S';
+    var dirty = false, timer = null, toastTimer = null;
+    var baseTitle = document.title;
+
+    function post(o) {{ if (window.ipc) window.ipc.postMessage(JSON.stringify(o)); }}
+    function editing() {{ return body.classList.contains('editing'); }}
+    function labels() {{
+        menu.querySelector('[data-act=mode]').textContent = editing() ? 'Viewer mode' : 'Editor mode';
+        menu.querySelector('[data-act=toc]').textContent = body.classList.contains('no-toc') ? 'Show table of contents' : 'Hide table of contents';
+        document.title = baseTitle + (dirty ? ' •' : '');
+    }}
+    function showToast(msg) {{
+        toast.textContent = msg; toast.style.display = 'block';
+        clearTimeout(toastTimer); toastTimer = setTimeout(function() {{ toast.style.display = 'none'; }}, 1800);
+    }}
+    function save() {{ if (!editing()) return; post({{cmd: 'save', text: ta.value}}); }}
+
+    btn.addEventListener('click', function(e) {{ e.stopPropagation(); kebab.classList.toggle('open'); }});
+    document.addEventListener('click', function() {{ kebab.classList.remove('open'); }});
+    menu.addEventListener('click', function(e) {{
+        var a = e.target.closest('button'); if (!a) return;
+        e.stopPropagation();
+        var act = a.getAttribute('data-act');
+        if (act === 'mode') {{ body.classList.toggle('editing'); if (editing()) ta.focus(); }}
+        else if (act === 'toc') {{ body.classList.toggle('no-toc'); }}
+        else if (act === 'save') {{ save(); }}
+        labels(); kebab.classList.remove('open');
+    }});
+    ta.addEventListener('input', function() {{
+        dirty = true; labels();
+        clearTimeout(timer);
+        timer = setTimeout(function() {{ post({{cmd: 'preview', text: ta.value}}); }}, 250);
+    }});
+    ta.addEventListener('keydown', function(e) {{
+        if (e.key === 'Tab') {{
+            e.preventDefault();
+            var s = ta.selectionStart, en = ta.selectionEnd;
+            ta.setRangeText('    ', s, en, 'end');
+            ta.dispatchEvent(new Event('input'));
+        }}
+    }});
+    document.addEventListener('keydown', function(e) {{
+        if ((e.metaKey || e.ctrlKey) && e.key === 's') {{ e.preventDefault(); save(); }}
+    }});
+
+    // Called from Rust after the file on disk changed (external edit or our own save).
+    window.__mdrSetEditor = function(text) {{
+        if (dirty) return;
+        if (ta.value !== text) ta.value = text;
+    }};
+    // Called from Rust after a save attempt. `err` is null on success.
+    window.__mdrSaved = function(err) {{
+        if (err) {{ showToast('Save failed: ' + err); return; }}
+        dirty = false; labels(); showToast('Saved');
+    }};
+    labels();
+}})();
+</script>
 <script>
 document.querySelector('.sidebar').addEventListener('click', function(e) {{
     if (e.target.tagName === 'A') {{
@@ -676,6 +877,8 @@ document.querySelector('.sidebar').addEventListener('click', function(e) {{
         css = GITHUB_CSS,
         toc = toc_html,
         body = body,
+        body_class = body_class.trim_end(),
+        editor_text = editor_text,
         highlight_script = highlight_script,
         mermaid_script = mermaid_script
     )
@@ -688,7 +891,7 @@ mod tests {
     #[test]
     fn build_html_does_not_block_clipboard_in_csp() {
         let toc = vec![];
-        let html = build_html("<p>Hello</p>", &toc);
+        let html = build_html("<p>Hello</p>", &toc, "", ViewOptions::default());
         // CSP must NOT block clipboard API — it should either omit clipboard restrictions
         // or not have a restrictive default-src that prevents copy operations
         // The key is that the webview's native copy (Cmd+C/Ctrl+C) works through
@@ -710,7 +913,7 @@ mod tests {
     fn highlight_js_injected_when_code_blocks_present() {
         let toc = vec![];
         let body = r#"<pre><code class="language-rust">fn main() {}</code></pre>"#;
-        let html = build_html(body, &toc);
+        let html = build_html(body, &toc, "", ViewOptions::default());
         assert!(
             html.contains("hljs.highlightAll()"),
             "hljs.highlightAll() must be present when code blocks exist"
@@ -728,7 +931,7 @@ mod tests {
     #[test]
     fn highlight_js_not_injected_for_prose_only() {
         let toc = vec![];
-        let html = build_html("<p>No code here</p>", &toc);
+        let html = build_html("<p>No code here</p>", &toc, "", ViewOptions::default());
         assert!(
             !html.contains("hljs.highlightAll()"),
             "hljs should not be injected for prose-only content"

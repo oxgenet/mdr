@@ -12,7 +12,9 @@ categories = ["command-line-utilities", "text-processing"]
 keywords = ["markdown", "viewer", "mermaid", "tui", "webview"]
 
 [features]
-default = ["egui-backend", "webview-backend", "tui-backend"]
+# This fork ships the webview viewer/editor by default. Add egui/tui explicitly:
+#   cargo build --features egui-backend,tui-backend
+default = ["webview-backend"]
 egui-backend = [
   "dep:eframe",
   "dep:egui_commonmark",

@@ -110,6 +110,31 @@ mdr --backend tui README.md
 mdr --help
 ```
 
+### Webview: viewer and editor modes
+
+The webview backend opens in **viewer mode** by default: only the rendered
+document is shown, with no sidebar or toolbar. A small `⋮` menu in the top-right
+corner switches between modes:
+
+- **Editor mode** — a source pane on the left with live preview on the right.
+  `Cmd+S` / `Ctrl+S` (or the menu's *Save*) writes the file back to disk.
+- **Show / hide table of contents** — toggles the heading sidebar.
+
+```bash
+# Start directly in editor mode
+mdr --edit README.md
+
+# Start with the table of contents visible
+mdr --toc README.md
+```
+
+Both can also be set in `~/.config/mdr/config.kdl`:
+
+```kdl
+mode editor   // viewer (default) or editor
+toc #true     // show the sidebar at startup
+```
+
 ### TUI keybindings
 
 | Key | Action |

@@ -55,6 +55,15 @@ mod tests {
     }
 
     #[test]
+    fn load_parses_toc_and_mode() {
+        let path = tmp_config("toc_mode", "toc #true\nmode editor\n");
+        let cfg = load(&path).unwrap();
+        assert_eq!(cfg.toc, Some(true));
+        assert_eq!(cfg.mode.as_deref(), Some("editor"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
     fn load_returns_defaults_for_missing_file() {
         let path = PathBuf::from("/nonexistent/mdr_no_such_config.kdl");
         let cfg = load(&path).unwrap();
@@ -87,6 +96,10 @@ mod tests {
 pub struct Config {
     pub backend: Option<String>,
     pub verbose: Option<bool>,
+    /// Show the table-of-contents sidebar at startup (webview backend).
+    pub toc: Option<bool>,
+    /// Startup mode for the webview backend: "viewer" (default) or "editor".
+    pub mode: Option<String>,
 }
 
 const DEFAULT_CONFIG: &str = "\
@@ -97,6 +110,12 @@ backend webview
 
 // Uncomment to enable verbose logging by default
 // verbose #true
+
+// Webview: show the table of contents sidebar at startup (default: false)
+// toc #true
+
+// Webview: startup mode, viewer or editor (default: viewer)
+// mode editor
 ";
 
 /// Returns the default config file path: `~/.config/mdr/config.kdl`.
@@ -147,6 +166,18 @@ pub fn load(path: &PathBuf) -> Result<Config, Box<dyn std::error::Error>> {
                     Some(kdl::KdlValue::Bool(b)) => *b,
                     _ => true,
                 });
+            }
+            "toc" => {
+                cfg.toc = Some(match node.get(0) {
+                    None => true,
+                    Some(kdl::KdlValue::Bool(b)) => *b,
+                    _ => true,
+                });
+            }
+            "mode" => {
+                if let Some(kdl::KdlValue::String(s)) = node.get(0) {
+                    cfg.mode = Some(s.clone());
+                }
             }
             other => eprintln!("mdr: unknown config key '{}'", other),
         }

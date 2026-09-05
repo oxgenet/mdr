@@ -39,6 +39,11 @@ struct Cli {
     /// Show the table of contents sidebar at startup (webview backend)
     #[arg(long)]
     toc: bool,
+
+    /// Document language for CJK rendering: auto, ja, zh-Hans, zh-Hant, ko
+    /// (front matter `lang:` in the document takes precedence)
+    #[arg(long, value_name = "TAG")]
+    lang: Option<String>,
 }
 
 fn print_backends() {
@@ -180,6 +185,7 @@ fn main() {
     let view_opts = backend::webview::ViewOptions {
         editor: cli.edit || cfg.mode.as_deref() == Some("editor"),
         toc: cli.toc || cfg.toc.unwrap_or(false),
+        lang: cli.lang.clone().or(cfg.lang.clone()),
     };
 
     let backend_str = cli.backend

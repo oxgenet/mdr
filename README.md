@@ -135,6 +135,29 @@ mode editor   // viewer (default) or editor
 toc #true     // show the sidebar at startup
 ```
 
+### CJK rendering: Japanese, Simplified / Traditional Chinese, Korean
+
+The rendered page carries a `lang` attribute so the browser picks the right
+glyph shapes (e.g. 直, 骨, 令 differ between ja / zh-Hans / zh-Hant) and the
+matching system fonts via `:lang()` CSS — for body text, code, the editor pane,
+and inline Mermaid diagrams. The language is resolved in this order:
+
+1. `lang:` in the document's YAML front matter (`lang: zh-Hant`)
+2. `--lang <tag>` on the command line, or `lang "<tag>"` in `config.kdl`
+3. Content detection: kana → `ja`, Hangul → `ko`, Bopomofo → `zh-Hant`, and
+   for Han-only text a vote over characters that are distinctive to Simplified
+   or Traditional Chinese (`zh-Hans` / `zh-Hant`)
+4. The OS locale (`LC_ALL` / `LANG`)
+5. Otherwise no attribute is set (Latin-script documents are untouched)
+
+Kanji-only Japanese cannot be told apart from Chinese by content alone; give it
+`lang: ja` in the front matter or start with `--lang ja`. Mixed documents can
+override per block with raw HTML: `<div lang="ko">…</div>`.
+
+```bash
+mdr --lang zh-Hant notes.md
+```
+
 ### TUI keybindings
 
 | Key | Action |

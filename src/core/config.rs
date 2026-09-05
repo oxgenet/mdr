@@ -56,10 +56,11 @@ mod tests {
 
     #[test]
     fn load_parses_toc_and_mode() {
-        let path = tmp_config("toc_mode", "toc #true\nmode editor\n");
+        let path = tmp_config("toc_mode", "toc #true\nmode editor\nlang zh-Hant\n");
         let cfg = load(&path).unwrap();
         assert_eq!(cfg.toc, Some(true));
         assert_eq!(cfg.mode.as_deref(), Some("editor"));
+        assert_eq!(cfg.lang.as_deref(), Some("zh-Hant"));
         let _ = std::fs::remove_file(&path);
     }
 
@@ -100,6 +101,8 @@ pub struct Config {
     pub toc: Option<bool>,
     /// Startup mode for the webview backend: "viewer" (default) or "editor".
     pub mode: Option<String>,
+    /// Document language for CJK rendering: auto (default), ja, zh-Hans, zh-Hant, ko.
+    pub lang: Option<String>,
 }
 
 const DEFAULT_CONFIG: &str = "\
@@ -116,6 +119,10 @@ backend webview
 
 // Webview: startup mode, viewer or editor (default: viewer)
 // mode editor
+
+// Document language for CJK glyphs/fonts: auto (default), ja, zh-Hans, zh-Hant, ko.
+// Front matter `lang:` in a document always wins over this.
+// lang ja
 ";
 
 /// Returns the default config file path: `~/.config/mdr/config.kdl`.
@@ -177,6 +184,11 @@ pub fn load(path: &PathBuf) -> Result<Config, Box<dyn std::error::Error>> {
             "mode" => {
                 if let Some(kdl::KdlValue::String(s)) = node.get(0) {
                     cfg.mode = Some(s.clone());
+                }
+            }
+            "lang" => {
+                if let Some(kdl::KdlValue::String(s)) = node.get(0) {
+                    cfg.lang = Some(s.clone());
                 }
             }
             other => eprintln!("mdr: unknown config key '{}'", other),

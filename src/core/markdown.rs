@@ -13,6 +13,8 @@ pub fn parse_markdown(content: &str) -> String {
     options.extension.footnotes = true;
     options.render.r#unsafe = true;
 
+    // Drop a leading YAML front matter block so it is not rendered as text.
+    let (_, content) = crate::core::lang::split_front_matter(content);
     let html = markdown_to_html(content, &options);
     let html = add_heading_ids(&html);
     process_mermaid_blocks(&html)
@@ -255,6 +257,24 @@ body {
     background: var(--bg);
     display: flex;
 }
+
+/* --- CJK: fonts and line layout follow the document's lang attribute --- */
+:lang(ja) { font-family: system-ui, -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans JP", "Noto Sans CJK JP", sans-serif; }
+:lang(zh-Hans), :lang(zh) { font-family: system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", sans-serif; }
+:lang(zh-Hant) { font-family: system-ui, -apple-system, "PingFang TC", "PingFang HK", "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans TC", "Noto Sans CJK TC", sans-serif; }
+:lang(ko) { font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Noto Sans CJK KR", sans-serif; }
+:lang(ja) code, :lang(ja) pre, :lang(ja) kbd, :lang(ja) samp { font-family: ui-monospace, SFMono-Regular, Menlo, "Osaka-Mono", "BIZ UDGothic", "MS Gothic", Consolas, "Noto Sans Mono CJK JP", monospace; }
+:lang(zh-Hans) code, :lang(zh-Hans) pre, :lang(zh) code, :lang(zh) pre { font-family: ui-monospace, SFMono-Regular, Menlo, "PingFang SC", "Microsoft YaHei", Consolas, "Noto Sans Mono CJK SC", monospace; }
+:lang(zh-Hant) code, :lang(zh-Hant) pre { font-family: ui-monospace, SFMono-Regular, Menlo, "PingFang TC", "Microsoft JhengHei", Consolas, "Noto Sans Mono CJK TC", monospace; }
+:lang(ko) code, :lang(ko) pre { font-family: ui-monospace, SFMono-Regular, Menlo, "Apple SD Gothic Neo", "Malgun Gothic", Consolas, "Noto Sans Mono CJK KR", monospace; }
+:lang(ja), :lang(zh), :lang(zh-Hans), :lang(zh-Hant), :lang(ko) {
+    line-height: 1.75;
+    overflow-wrap: anywhere;
+    line-break: strict;
+    text-autospace: normal;
+}
+/* Inline mermaid SVG carries font-family attributes; CSS beats attributes so text follows lang too. */
+.mermaid-diagram svg, .mermaid-diagram svg text, .mermaid-diagram svg tspan { font-family: inherit; }
 .sidebar {
     width: 250px;
     min-width: 250px;

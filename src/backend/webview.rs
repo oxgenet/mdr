@@ -10,12 +10,14 @@ use crate::core::toc;
 use crate::vlog;
 
 /// Startup UI options for the webview backend.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ViewOptions {
     /// Start in editor mode (source pane + live preview). Default: viewer mode.
     pub editor: bool,
     /// Show the table-of-contents sidebar at startup. Default: hidden.
     pub toc: bool,
+    /// Explicit document language tag (`ja`, `zh-Hans`, ...). `None`/`auto` = detect.
+    pub lang: Option<String>,
 }
 
 /// Messages sent from the page (via `window.ipc.postMessage`) to the event loop.
@@ -27,17 +29,25 @@ enum UserEvent {
     Save(String),
 }
 
-/// Build the JS snippet that swaps in freshly rendered body + TOC.
-fn render_update_js(content: &str, base_dir: &std::path::Path) -> String {
+/// Resolve the document language tag ("" when none) for the `lang` attribute.
+fn lang_tag(content: &str, explicit: Option<&str>) -> String {
+    crate::core::lang::resolve(content, explicit)
+        .map(|l| l.tag().to_string())
+        .unwrap_or_default()
+}
+
+/// Build the JS snippet that swaps in freshly rendered body + TOC and updates `lang`.
+fn render_update_js(content: &str, base_dir: &std::path::Path, explicit_lang: Option<&str>) -> String {
     let new_html = parse_markdown(content);
     let new_html = resolve_local_images(&new_html, base_dir);
     let new_toc = toc::extract_toc(content);
     let toc_html = build_toc_html(&new_toc);
     let body_json = serde_json::to_string(&new_html).unwrap_or_default();
     let toc_json = serde_json::to_string(&toc_html).unwrap_or_default();
+    let lang_json = serde_json::to_string(&lang_tag(content, explicit_lang)).unwrap_or_default();
     format!(
-        "document.querySelector('.content').innerHTML = {}; document.querySelector('.sidebar ul').innerHTML = {}; if (window.hljs) hljs.highlightAll(); if (window.mermaid) {{ try {{ mermaid.run(); }} catch (e) {{}} }}",
-        body_json, toc_json
+        "document.documentElement.setAttribute('lang', {}); document.querySelector('.content').innerHTML = {}; document.querySelector('.sidebar ul').innerHTML = {}; if (window.hljs) hljs.highlightAll(); if (window.mermaid) {{ try {{ mermaid.run(); }} catch (e) {{}} }}",
+        lang_json, body_json, toc_json
     )
 }
 
@@ -80,7 +90,10 @@ pub fn run(file_path: PathBuf, opts: ViewOptions) -> Result<(), Box<dyn std::err
     }
     let html_body = resolve_local_images(&html_body, &base_dir);
     let toc_entries = toc::extract_toc(&markdown_content);
-    let full_html = build_html(&html_body, &toc_entries, &markdown_content, opts);
+    let doc_lang = lang_tag(&markdown_content, opts.lang.as_deref());
+    vlog!("webview: lang={:?}", doc_lang);
+    let full_html = build_html(&html_body, &toc_entries, &markdown_content, &doc_lang, &opts);
+    let explicit_lang = opts.lang.clone();
 
     let watcher_rx = crate::core::watcher::watch_file(&file_path)?;
 
@@ -151,7 +164,7 @@ pub fn run(file_path: PathBuf, opts: ViewOptions) -> Result<(), Box<dyn std::err
         if watcher_rx.try_recv().is_ok() {
             while watcher_rx.try_recv().is_ok() {}
             if let Ok(content) = std::fs::read_to_string(&file_path) {
-                let mut js = render_update_js(&content, &base_dir);
+                let mut js = render_update_js(&content, &base_dir, explicit_lang.as_deref());
                 let src_json = serde_json::to_string(&content).unwrap_or_default();
                 js.push_str(&format!(
                     " if (window.__mdrSetEditor) __mdrSetEditor({});",
@@ -167,7 +180,7 @@ pub fn run(file_path: PathBuf, opts: ViewOptions) -> Result<(), Box<dyn std::err
                 ..
             } => *control_flow = ControlFlow::Exit,
             Event::UserEvent(UserEvent::Preview(text)) => {
-                let js = render_update_js(&text, &base_dir);
+                let js = render_update_js(&text, &base_dir, explicit_lang.as_deref());
                 let _ = webview.evaluate_script(&js);
             }
             Event::UserEvent(UserEvent::Save(text)) => {
@@ -493,8 +506,14 @@ fn build_html(
     body: &str,
     toc_entries: &[toc::TocEntry],
     source: &str,
-    opts: ViewOptions,
+    lang: &str,
+    opts: &ViewOptions,
 ) -> String {
+    let lang_attr = if lang.is_empty() {
+        String::new()
+    } else {
+        format!(" lang=\"{}\"", html_escape_text(lang).replace('"', "&quot;"))
+    };
     let toc_html = build_toc_html(toc_entries);
     let mut body_class = String::new();
     if !opts.toc {
@@ -530,7 +549,7 @@ fn build_html(
 
     format!(
         r#"<!DOCTYPE html>
-<html>
+<html{lang_attr}>
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
@@ -879,6 +898,7 @@ document.querySelector('.sidebar').addEventListener('click', function(e) {{
         body = body,
         body_class = body_class.trim_end(),
         editor_text = editor_text,
+        lang_attr = lang_attr,
         highlight_script = highlight_script,
         mermaid_script = mermaid_script
     )
@@ -891,7 +911,7 @@ mod tests {
     #[test]
     fn build_html_does_not_block_clipboard_in_csp() {
         let toc = vec![];
-        let html = build_html("<p>Hello</p>", &toc, "", ViewOptions::default());
+        let html = build_html("<p>Hello</p>", &toc, "", "", &ViewOptions::default());
         // CSP must NOT block clipboard API — it should either omit clipboard restrictions
         // or not have a restrictive default-src that prevents copy operations
         // The key is that the webview's native copy (Cmd+C/Ctrl+C) works through
@@ -907,13 +927,29 @@ mod tests {
         );
     }
 
+    #[test]
+    fn build_html_sets_lang_attribute_when_given() {
+        let html = build_html("<p>x</p>", &[], "", "zh-Hant", &ViewOptions::default());
+        assert!(html.contains("<html lang=\"zh-Hant\">"));
+        let html = build_html("<p>x</p>", &[], "", "", &ViewOptions::default());
+        assert!(html.contains("<html>"));
+    }
+
+    #[test]
+    fn render_update_js_updates_lang_from_content() {
+        let js = render_update_js("これは日本語です。", std::path::Path::new("."), None);
+        assert!(js.contains("setAttribute('lang', \"ja\")"));
+        let js = render_update_js("plain english", std::path::Path::new("."), Some("ko"));
+        assert!(js.contains("setAttribute('lang', \"ko\")"));
+    }
+
     // --- highlight.js / KDL highlighting tests ---
 
     #[test]
     fn highlight_js_injected_when_code_blocks_present() {
         let toc = vec![];
         let body = r#"<pre><code class="language-rust">fn main() {}</code></pre>"#;
-        let html = build_html(body, &toc, "", ViewOptions::default());
+        let html = build_html(body, &toc, "", "", &ViewOptions::default());
         assert!(
             html.contains("hljs.highlightAll()"),
             "hljs.highlightAll() must be present when code blocks exist"
@@ -931,7 +967,7 @@ mod tests {
     #[test]
     fn highlight_js_not_injected_for_prose_only() {
         let toc = vec![];
-        let html = build_html("<p>No code here</p>", &toc, "", ViewOptions::default());
+        let html = build_html("<p>No code here</p>", &toc, "", "", &ViewOptions::default());
         assert!(
             !html.contains("hljs.highlightAll()"),
             "hljs should not be injected for prose-only content"

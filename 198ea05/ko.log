@@ -1,0 +1,6 @@
+[mdr] webview: file_path=D:\a\mdr\mdr\tests\samples\lang\ko.md
+[mdr] webview: base_dir=\\?\D:\a\mdr\mdr\tests\samples\lang
+[mdr] webview: markdown_content length=201 bytes
+[mdr] webview: html_body length=3279 bytes
+[mdr] resolve_local_images: base_dir=\\?\D:\a\mdr\mdr\tests\samples\lang
+[mdr] webview: lang="ko"

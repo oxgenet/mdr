@@ -139,6 +139,58 @@ jobs:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
         run: cargo ndk -t arm64-v8a check --no-default-features --features webview-backend
 
+  # Launch the real Windows binary on a GUI runner, open each sample document,
+  # and capture the screen. Screenshots are uploaded as an artifact so the
+  # rendering (CJK fonts/glyphs, Mermaid, images) can be checked without a
+  # Windows machine at hand.
+  windows-screenshots:
+    name: Windows rendering check (screenshots)
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: mdr-x86_64-pc-windows-msvc.zip
+          path: dist
+
+      - name: Unpack
+        shell: pwsh
+        run: Expand-Archive -Path dist/mdr-x86_64-pc-windows-msvc.zip -DestinationPath dist/bin -Force
+
+      - name: Run samples and capture screenshots
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          Add-Type -AssemblyName System.Windows.Forms
+          New-Item -ItemType Directory -Force -Path shots | Out-Null
+          $exe = (Resolve-Path dist/bin/mdr.exe).Path
+          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          "screen: $($bounds.Width)x$($bounds.Height)" | Tee-Object -FilePath shots/info.txt
+          Get-ChildItem tests/samples/lang/*.md | ForEach-Object {
+            $md = $_.FullName
+            $name = $_.BaseName
+            $p = Start-Process -FilePath $exe -ArgumentList @('-v', "`"$md`"") -WorkingDirectory $_.DirectoryName -PassThru -RedirectStandardError "shots/$name.log"
+            Start-Sleep -Seconds 12
+            $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+            $bmp.Save("shots/$name.png", [System.Drawing.Imaging.ImageFormat]::Png)
+            $g.Dispose(); $bmp.Dispose()
+            "captured $name (pid $($p.Id), exited=$($p.HasExited))" | Tee-Object -FilePath shots/info.txt -Append
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+          }
+          Get-Content shots/*.log | Select-String "lang=" | Tee-Object -FilePath shots/info.txt -Append
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-screenshots
+          path: shots/
+
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')

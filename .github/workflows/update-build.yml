@@ -191,6 +191,34 @@ jobs:
           name: windows-screenshots
           path: shots/
 
+      # Also publish them to the `ci-screenshots` branch so they can be viewed
+      # without authentication (raw.githubusercontent.com/<owner>/<repo>/ci-screenshots/latest/<name>.png).
+      - name: Publish screenshots to ci-screenshots branch
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          SHA="${GITHUB_SHA::7}"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -rf pub && mkdir pub && cd pub
+          git init -q
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q origin ci-screenshots; then
+            git checkout -q -b ci-screenshots FETCH_HEAD
+          else
+            git checkout -q --orphan ci-screenshots
+          fi
+          rm -rf latest "$SHA" && mkdir -p latest "$SHA"
+          cp ../shots/* latest/ && cp ../shots/* "$SHA"/
+          printf '# Windows rendering screenshots\n\nLatest: commit %s\n\n' "$SHA" > README.md
+          for f in latest/*.png; do n=$(basename "$f" .png); printf '## %s\n\n![%s](latest/%s.png)\n\n' "$n" "$n" "$n" >> README.md; done
+          git add -A
+          git commit -q -m "Windows screenshots for ${SHA}" || echo "nothing to commit"
+          git push -q origin ci-screenshots
+
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')

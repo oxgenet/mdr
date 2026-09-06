@@ -40,6 +40,13 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Show images that a document links from devices on your local network (for example a NAS).</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Insert photos into Markdown documents.</string>
 	<key>UIApplicationSceneManifest</key>

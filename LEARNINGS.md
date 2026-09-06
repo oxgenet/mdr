@@ -23,6 +23,7 @@ Markdown ビューア／エディタの OSS 調査から、mdr フォーク（ox
 - **rustc 1.91 では kdl 6.7.1（要 1.95）が入らない**: ローカルは `cargo update kdl --precise 6.3.4`。Cargo.lock は gitignore なので CI（stable）には影響しない。
 - **背景の `app_type` は CodeMirror に届かない**: Markdown-Viewer のエディタへ貼り付けもタイプも失敗。別ファイルを CLI 引数で開き直す方が確実だった。
 - **Mermaid が「Rendering…」で止まるのは初期描画トリガーの問題**: Markdown-Viewer で日本語ラベルを疑ったが、英語でも同じで、タブ切替で描画された。原因を絞る前に「別条件でも再現するか」を確かめる。
+- **PATH 上の別バイナリが実行されてクラッシュ報告が来た（2026-09-06）**: `mdr` が Homebrew の上流版 0.2.8（egui 既定）を指しており、macOS 26.5.1 で winit の Touch Bar KVO 例外により落ちた。フォークは egui を含まないので無関係。クラッシュレポートは **Path と backend の関数名**（`mdr::backend::egui::run`）を最初に見る。対処は `brew unlink mdr` → `install -m755 target/release/mdr /opt/homebrew/bin/mdr` → `codesign -s -`。上流版を使うなら `-b webview` で回避できる。
 - **MDHero の Zen モード（Cmd+Shift+F）は効かなかった**: コード上は存在する。`e.key === "f"` が Shift 押下時に `"F"` になる可能性が高い（未確認）。
 
 ## 業務知識

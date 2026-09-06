@@ -1,0 +1,15 @@
+[mdr] webview: file_path=D:\a\mdr\mdr\tests\samples\lang\remote-images.md
+[mdr] webview: base_dir=\\?\D:\a\mdr\mdr\tests\samples\lang
+[mdr] webview: markdown_content length=365 bytes
+[mdr] webview: html_body length=468 bytes
+[mdr] webview: found <img> tag: <img src="https://raw.githubusercontent.com/oxgenet/mdr/main/tests/samples/lang/test.png" alt="https" />
+[mdr] webview: found <img> tag: <img src="http://192.168.255.254:8000/missing.png" alt="lan" />
+[mdr] webview: found <img> tag: <img src="http://example.com/blocked.png" alt="public" />
+[mdr] resolve_local_images: base_dir=\\?\D:\a\mdr\mdr\tests\samples\lang
+[mdr]   IMG src="https://raw.githubusercontent.com/oxgenet/mdr/main/tests/samples/lang/test.png"
+[mdr]     → remote, allowed
+[mdr]   IMG src="http://192.168.255.254:8000/missing.png"
+[mdr]     → remote, allowed
+[mdr]   IMG src="http://example.com/blocked.png"
+[mdr]     → remote, BLOCKED: plain http is only allowed for local / private addresses
+[mdr] webview: lang=""

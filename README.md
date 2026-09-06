@@ -1,6 +1,6 @@
 # Windows rendering screenshots
 
-Latest: commit dfc4d41
+Latest: commit 5ea6bed
 
 ## en-image
 
@@ -17,6 +17,10 @@ Latest: commit dfc4d41
 ## ko
 
 ![ko](latest/ko.png)
+
+## remote-images
+
+![remote-images](latest/remote-images.png)
 
 ## zh-hans
 

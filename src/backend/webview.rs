@@ -1,3 +1,4 @@
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 use muda::{Menu, PredefinedMenuItem, Submenu};
 use std::path::PathBuf;
 use tao::event::{Event, WindowEvent};
@@ -114,24 +115,32 @@ pub fn run(file_path: PathBuf, opts: ViewOptions) -> Result<(), Box<dyn std::err
         let _ = proxy.send_event(ev);
     };
 
-    // Create a native Edit menu so that Cmd+C/Ctrl+C/V/X/A work on all platforms
-    let menu = Menu::new();
-    let edit_menu = Submenu::new("Edit", true);
-    let _ = edit_menu.append_items(&[
-        &PredefinedMenuItem::cut(None),
-        &PredefinedMenuItem::copy(None),
-        &PredefinedMenuItem::paste(None),
-        &PredefinedMenuItem::select_all(None),
-    ]);
-    let _ = menu.append(&edit_menu);
+    // Create a native Edit menu so that Cmd+C/Ctrl+C/V/X/A work on all desktop platforms
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    let menu = {
+        let menu = Menu::new();
+        let edit_menu = Submenu::new("Edit", true);
+        let _ = edit_menu.append_items(&[
+            &PredefinedMenuItem::cut(None),
+            &PredefinedMenuItem::copy(None),
+            &PredefinedMenuItem::paste(None),
+            &PredefinedMenuItem::select_all(None),
+        ]);
+        let _ = menu.append(&edit_menu);
+        menu
+    };
 
-    let window = WindowBuilder::new()
-        .with_title(format!("mdr - {}", file_path.display()))
+    let builder = WindowBuilder::new().with_title(format!("mdr - {}", file_path.display()));
+    // Desktop: fixed initial size + icon. Mobile: the window is the whole screen.
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    let builder = builder
         .with_inner_size(tao::dpi::LogicalSize::new(1100.0, 900.0))
         .with_window_icon(Some(
             tao::window::Icon::from_rgba(icon_rgba, icon_w, icon_h).unwrap(),
-        ))
-        .build(&event_loop)?;
+        ));
+    #[cfg(any(target_os = "ios", target_os = "android"))]
+    let _ = (icon_rgba, icon_w, icon_h);
+    let window = builder.build(&event_loop)?;
 
     // On macOS, init the menu for the app so Cmd+C/V/X/A work via the responder chain
     #[cfg(target_os = "macos")]
@@ -552,6 +561,7 @@ fn build_html(
 <html{lang_attr}>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
 <style>{css}</style>
 <style>
@@ -577,6 +587,19 @@ fn build_html(
 #expand-content svg {{ width: 95vw; height: 95vh; }}
 .expandable img, .expandable svg {{ cursor: zoom-in; }}
 .content svg {{ width: 100% !important; height: auto !important; display: block; }}
+
+/* --- mobile (iOS/Android webviews): keep content clear of the notch / status bar --- */
+body {{ padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }}
+#kebab {{ top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(14px + env(safe-area-inset-right, 0px)); }}
+.content {{ min-width: 0; max-width: 100%; box-sizing: border-box; }}
+.mermaid-diagram {{ max-width: 100%; overflow-x: auto; }}
+.content img {{ max-width: 100%; height: auto; }}
+@media (max-width: 700px) {{
+    .content {{ width: 100%; padding: 16px 14px 3rem; margin: 0; }}
+    .content table {{ display: block; overflow-x: auto; }}
+    body.editing #editor {{ width: 100vw; height: 45vh; border-right: none; border-bottom: 1px solid var(--border); }}
+    body.editing .content {{ margin-left: 0; margin-top: 45vh; }}
+}}
 
 /* --- viewer / editor modes --- */
 body.no-toc .sidebar {{ display: none; }}

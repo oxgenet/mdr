@@ -90,10 +90,9 @@ jobs:
           name: deps-${{ matrix.target }}
           path: deps-${{ matrix.target }}.txt
 
-  # Experimental: does the webview crate stack even compile for mobile targets?
-  # wry/tao support iOS and Android, but this binary is a desktop CLI (no app
-  # bundle, no mobile entry point). This job is a compile probe only and is
-  # allowed to fail; it does NOT produce an .ipa or .apk.
+  # Mobile probe. iOS builds succeed (muda is compiled out, tao/wry have iOS
+  # backends; see scripts/ios-sim.sh for the simulator e2e). Android is still a
+  # compile check only. Allowed to fail; produces no .ipa/.apk.
   mobile-check:
     name: Compile check ${{ matrix.target }} (experimental)
     runs-on: ${{ matrix.os }}
@@ -103,6 +102,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - os: macos-latest
+            target: aarch64-apple-ios-sim
           - os: macos-latest
             target: aarch64-apple-ios
           - os: ubuntu-latest
@@ -129,9 +130,9 @@ jobs:
       - name: Fetch latest dependency versions
         run: cargo update
 
-      - name: cargo check (iOS)
-        if: matrix.target == 'aarch64-apple-ios'
-        run: cargo check --target ${{ matrix.target }} --no-default-features --features webview-backend
+      - name: cargo build (iOS)
+        if: startsWith(matrix.target, 'aarch64-apple-ios')
+        run: cargo build --release --target ${{ matrix.target }} --no-default-features --features webview-backend
 
       - name: cargo check (Android)
         if: matrix.target == 'aarch64-linux-android'

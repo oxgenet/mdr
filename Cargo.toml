@@ -75,7 +75,6 @@ fontdb = { version = "0.23", optional = true }
 # webview backend
 wry = { version = "0.55", optional = true }
 tao = { version = "0.35", optional = true }
-muda = { version = "0.19", optional = true }
 
 # tui backend
 ratatui = { version = "0.30", optional = true }
@@ -120,3 +119,7 @@ assets = [
   { source = "LICENSE", dest = "/usr/share/licenses/mdr/LICENSE", mode = "0644", doc = true },
   { source = "NOTICE.md", dest = "/usr/share/doc/mdr/NOTICE.md", mode = "0644", doc = true },
 ]
+
+# Native menus only exist on desktop; iOS/Android builds skip muda entirely.
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
+muda = { version = "0.19", optional = true }

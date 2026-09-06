@@ -160,7 +160,21 @@ fn main() {
 
     core::set_verbose(cli.verbose || cfg.verbose.unwrap_or(false));
 
-    let file = match cli.file {
+    // iOS/Android apps are launched without a usable command line or stdin:
+    // open the document bundled next to the executable (see scripts/ios-sim.sh),
+    // or the path given in MDR_FILE.
+    #[cfg(any(target_os = "ios", target_os = "android"))]
+    let cli_file = cli.file.clone().or_else(|| {
+        std::env::var_os("MDR_FILE").map(PathBuf::from).or_else(|| {
+            std::env::current_exe()
+                .ok()
+                .and_then(|exe| exe.parent().map(|d| d.join("document.md")))
+        })
+    });
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    let cli_file = cli.file.clone();
+
+    let file = match cli_file {
         Some(f) if f.as_os_str() == "-" => read_stdin_to_tmpfile(),
         Some(f) => {
             if !f.exists() {

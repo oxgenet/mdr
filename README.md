@@ -163,6 +163,23 @@ override per block with raw HTML: `<div lang="ko">…</div>`.
 mdr --lang zh-Hant notes.md
 ```
 
+### iOS (experimental, simulator)
+
+The webview backend also builds for iOS: native menus (`muda`) are compiled out
+and the app opens `document.md` bundled next to the executable (or the path in
+`MDR_FILE`). `scripts/ios-sim.sh` builds for `aarch64-apple-ios-sim`, assembles
+`mdr.app` with `ios/Info.plist`, installs it on a booted iPhone simulator,
+launches it, captures a screenshot, and asserts that the document rendered.
+
+```bash
+rustup target add aarch64-apple-ios-sim
+scripts/ios-sim.sh tests/samples/lang/ja.md            # -> target/ios-sim/screenshot.png
+MDR_EXPECT_LANG=zh-Hant scripts/ios-sim.sh tests/samples/lang/zh-hant.md
+```
+
+There is no document picker yet, so on iOS this is a rendering test bed rather
+than a finished app.
+
 ### TUI keybindings
 
 | Key | Action |

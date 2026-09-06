@@ -45,6 +45,7 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true   # edit the original file, not a copy
         UISupportsDocumentBrowser: true           # app is a document-based app (Files-like browser)
         UIFileSharingEnabled: true                # app folder visible in Files
+        NSPhotoLibraryUsageDescription: Insert photos into Markdown documents.
         CFBundleDocumentTypes:
           - CFBundleTypeName: Markdown Document
             CFBundleTypeRole: Editor
@@ -60,6 +61,13 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension: [md, markdown, mdown, mkd, mkdn]
               public.mime-type: [text/markdown, text/x-markdown]
+    entitlements:
+      path: MdrApp.entitlements
+      properties:
+        com.apple.security.application-groups: [group.net.oxge.mdr]
+    dependencies:
+      - target: MdrShare
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.oxge.mdr
@@ -71,4 +79,36 @@ targets:
         # The Rust core is built for arm64 only (Apple Silicon simulator / devices)
         "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
         ARCHS: arm64
+        SWIFT_OPTIMIZATION_LEVEL: "-O"
+  # Share Extension: "mdr" in any app's share sheet for text and files.
+  # Saves into the App Group Inbox; the app imports it on next activation.
+  MdrShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../MdrShare
+        excludes: ["*.entitlements"]
+    entitlements:
+      path: ../MdrShare/MdrShare.entitlements
+      properties:
+        com.apple.security.application-groups: [group.net.oxge.mdr]
+    info:
+      path: ../MdrShare/Info.plist
+      properties:
+        CFBundleName: mdr
+        CFBundleDisplayName: mdr
+        CFBundleShortVersionString: "0.4.0"
+        CFBundleVersion: "1"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsFileWithMaxCount: 1
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.oxge.mdr.share
+        ARCHS: arm64
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
         SWIFT_OPTIMIZATION_LEVEL: "-O"

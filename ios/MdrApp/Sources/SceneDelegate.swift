@@ -38,6 +38,33 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
     }
 
+    /// Files dropped by the Share Extension into the App Group Inbox are moved
+    /// into Documents (so they show in the browser) and the newest one is opened.
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        guard let browser = window?.rootViewController as? DocumentBrowserViewController,
+              let group = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.net.oxge.mdr") else { return }
+        let inbox = group.appendingPathComponent("Inbox", isDirectory: true)
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        guard let files = try? FileManager.default.contentsOfDirectory(at: inbox, includingPropertiesForKeys: [.contentModificationDateKey]),
+              !files.isEmpty else { return }
+        var newest: URL?
+        for f in files.sorted(by: { ($0.lastPathComponent) < ($1.lastPathComponent) }) {
+            var dest = docs.appendingPathComponent(f.lastPathComponent)
+            var n = 1
+            while FileManager.default.fileExists(atPath: dest.path) {
+                n += 1
+                dest = docs.appendingPathComponent("\(f.deletingPathExtension().lastPathComponent) \(n).\(f.pathExtension)")
+            }
+            if (try? FileManager.default.moveItem(at: f, to: dest)) != nil {
+                NSLog("[mdr-ios] imported from share inbox: %@", dest.lastPathComponent)
+                newest = dest
+            }
+        }
+        if let url = newest, browser.presentedViewController == nil {
+            browser.open(url: url, presentImmediately: false)
+        }
+    }
+
     /// Opened from Files / share sheet while already running.
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         guard let url = URLContexts.first?.url,

@@ -12,6 +12,10 @@ Markdown ビューア／エディタの OSS 調査から、mdr フォーク（ox
 - **wry の IPC で「ページ → Rust」の経路を足す**: `EventLoopBuilder::<UserEvent>::with_user_event().build()` で proxy を作り、`WebViewBuilder::with_ipc_handler` から `proxy.send_event` する。Rust 側で `Event::UserEvent` を受けて `evaluate_script` で返す。preview（デバウンス 250ms）と save の 2 コマンドで、エディタ＋保存＋外部変更同期が 1 ファイル内の差分で済んだ。
 - **背景操作で送れないキーはメニュー項目に逃がす**: `app_key` は Cmd+S を送れない。ケバブメニューに Save を置いた設計のおかげで、検証も実運用も両方通った。
 - **待ち受けは `until` ループで自動続行**: フォーク出現を `until git ls-remote ... ; do sleep 20; done` で待ち、検知後にマージ・push・ワークフロー監視まで自動で進めた。ユーザーが別作業をしても止まらない。
+- **iOS の「Acrobat 型」導線は 4 つの標準機構で成立する**: 文書型（`CFBundleDocumentTypes` + `UTImportedTypeDeclarations`、`LSHandlerRank=Owner`）、`UIDocumentBrowserViewController`、`LSSupportsOpeningDocumentsInPlace` + `UIDocument`、共有シート。Rust コアは `staticlib` + C ABI（`mdr_render_page` など）で呼び、殻は Swift 5 ファイル約 400 行で済んだ。
+- **Rust の staticlib を Xcode にリンクするときは LTO とビットコードを切る**: Rust 1.98 の LLVM 22 が吐くビットコードを Xcode 26 の LLVM 21 が読めない。`CARGO_PROFILE_RELEASE_LTO=off RUSTFLAGS="-C embed-bitcode=no"`、シミュレータは `EXCLUDED_ARCHS[sdk=iphonesimulator*]=x86_64` で arm64 限定。
+- **XcodeGen の `entitlements: path:` は `properties:` が無いと空で上書きする**: App Group を書いた entitlements が `<dict/>` に消えた。必ず `properties:` に中身を書く。
+- **シミュレータの E2E は `-openFile` 起動引数 + `simctl get_app_container` への投入 + NSLog の grep で組める**: `simctl launch --console-pty` の stdout に NSLog が出るので、`[mdr-ios] opened/rendered` を合否判定に使える。`simctl io screenshot` は絶対パスで指定する。
 - **公開リポジトリの Actions は未認証 API で監視できる**: `actions/runs` と `runs/<id>/jobs` を 90 秒間隔で叩き、completed になったジョブだけを差分で出す。認証が要らないので、gh が使えないプロセスからでも監視できる。
 
 ## 失敗（再発させない）
@@ -24,6 +28,10 @@ Markdown ビューア／エディタの OSS 調査から、mdr フォーク（ox
 - **背景の `app_type` は CodeMirror に届かない**: Markdown-Viewer のエディタへ貼り付けもタイプも失敗。別ファイルを CLI 引数で開き直す方が確実だった。
 - **Mermaid が「Rendering…」で止まるのは初期描画トリガーの問題**: Markdown-Viewer で日本語ラベルを疑ったが、英語でも同じで、タブ切替で描画された。原因を絞る前に「別条件でも再現するか」を確かめる。
 - **PATH 上の別バイナリが実行されてクラッシュ報告が来た（2026-09-06）**: `mdr` が Homebrew の上流版 0.2.8（egui 既定）を指しており、macOS 26.5.1 で winit の Touch Bar KVO 例外により落ちた。フォークは egui を含まないので無関係。クラッシュレポートは **Path と backend の関数名**（`mdr::backend::egui::run`）を最初に見る。対処は `brew unlink mdr` → `install -m755 target/release/mdr /opt/homebrew/bin/mdr` → `codesign -s -`。上流版を使うなら `-b webview` で回避できる。
+- **iOS 26 のキーボード上ツールバーは項目が多いと横スクロールになり、端のボタンが隠れる**: 写真ボタンと Done が画面外に出て押せなかった。1 行に収まる 7 項目程度に絞る。
+- **`UISearchBar.showsCancelButton` の X はナビゲーションバーの `titleView` では反応しなかった**: 右側に `UIBarButtonItem(.cancel)` を置く方が確実。
+- **アクセシビリティ経由の一括置換では `textViewDidChange` が呼ばれない**: 編集モードを抜けるときに無条件で再描画する実装にした。
+- **Share Extension のデータ受け渡しは App Group が必須で、未署名のシミュレータビルドでは動かない**: 共有シートに現れて起動はするが `containerURL(forSecurityApplicationGroupIdentifier:)` が nil。Team ID で署名して初めて検証できる。
 - **MDHero の Zen モード（Cmd+Shift+F）は効かなかった**: コード上は存在する。`e.key === "f"` が Shift 押下時に `"F"` になる可能性が高い（未確認）。
 
 ## 業務知識

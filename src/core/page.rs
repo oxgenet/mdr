@@ -649,6 +649,10 @@ document.querySelector('.sidebar').addEventListener('click', function(e) {{
         updateInfo();
     }};
 
+    // Native shells (iOS) drive search from their own search bar.
+    window.mdrSearch = function(q) {{ highlightMatches(q || ''); return matches.length; }};
+    window.mdrSearchCurrent = function() {{ return currentIdx; }};
+
     window.closeSearch = function() {{
         document.getElementById('searchBar').style.display = 'none';
         clearHighlights();

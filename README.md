@@ -186,6 +186,24 @@ rustup target add aarch64-apple-ios-sim
 ios/build-app.sh tests/samples/lang/ja.md     # build core + app, install on a simulator, open, screenshot, assert
 ```
 
+Verified on the iPhone simulator: open from the document browser, edit with
+live preview and in-place autosave, native table of contents sheet, native
+search bar with match count and highlights, insert a photo from the library
+(saved next to the document, downscaled to 2048 px), share as `.md` or PDF
+(`WKWebView.createPDF`, CJK fonts and vector Mermaid preserved).
+
+The Share Extension (`ios/MdrShare`) appears in other apps' share sheets and
+hands text / files to the app through the App Group `group.net.oxge.mdr`.
+App Groups need a signed build, so on an unsigned simulator build the
+extension launches but cannot deliver the file.
+
+Device / TestFlight builds need an Apple Developer Team ID:
+
+```bash
+DEVELOPMENT_TEAM=ABCDE12345 ios/build-device.sh              # signed archive + ad-hoc .ipa
+DEVELOPMENT_TEAM=ABCDE12345 ASC_KEY_ID=… ASC_ISSUER_ID=… ASC_KEY_PATH=… ios/build-device.sh --upload
+```
+
 `scripts/ios-sim.sh` is the older, chrome-less test bed (tao window + bundled document).
 
 ### TUI keybindings

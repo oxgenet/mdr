@@ -8,8 +8,11 @@ class Mdr < Formula
   version "0.4.0"
   license "MIT"
 
-  # Not the same package as CleverCloud/misc/mdr: same binary name, different project.
-  conflicts_with "mdr", because: "both install a `mdr` binary; this is the oxgenet fork"
+  # `brew install --HEAD oxgenet/tap/mdr` builds the current main branch from source.
+  head "https://github.com/oxgenet/mdr.git", branch: "main"
+
+  # Not the same package as CleverCloud/misc/mdr (same binary name, different project);
+  # uninstall that one first: brew uninstall mdr
 
   on_macos do
     if Hardware::CPU.arm?
@@ -28,8 +31,16 @@ class Mdr < Formula
     # (libwebkit2gtk-4.1, libgtk-3); install them with your distro's package manager.
   end
 
+  depends_on "rust" => :build if build.head?
+
   def install
-    bin.install "mdr"
+    if build.head?
+      # Source build (webview backend only, as shipped by this fork). --locked uses
+      # the committed Cargo.lock so Homebrew's rustc version keeps working.
+      system "cargo", "install", "--locked", *std_cargo_args
+    else
+      bin.install "mdr"
+    end
     # Ship the license and fork notice with the package (MIT requires the notice).
     prefix.install "LICENSE" if File.exist?("LICENSE")
     prefix.install "NOTICE.md" if File.exist?("NOTICE.md")

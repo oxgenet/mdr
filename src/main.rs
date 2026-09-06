@@ -43,6 +43,14 @@ struct Cli {
     /// (front matter `lang:` in the document takes precedence)
     #[arg(long, value_name = "TAG")]
     lang: Option<String>,
+
+    /// Do not load images from http(s) URLs
+    #[arg(long)]
+    no_remote_images: bool,
+
+    /// Do not allow plain-http images even for localhost / private addresses
+    #[arg(long)]
+    no_local_http: bool,
 }
 
 fn print_backends() {
@@ -158,6 +166,8 @@ fn main() {
     };
 
     core::set_verbose(cli.verbose || cfg.verbose.unwrap_or(false));
+    core::urlpolicy::set_remote_images(!cli.no_remote_images && cfg.remote_images.unwrap_or(true));
+    core::urlpolicy::set_allow_local_http(!cli.no_local_http && cfg.allow_local_http.unwrap_or(true));
 
     // iOS/Android apps are launched without a usable command line or stdin:
     // open the document bundled next to the executable (see scripts/ios-sim.sh),

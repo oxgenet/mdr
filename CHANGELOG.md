@@ -22,6 +22,10 @@ the modifications; original work (c) 2026 Clever Cloud, MIT.
 - CI: dependency refresh builds (macOS arm64/x64, Windows x64/arm64), Windows
   rendering screenshots, experimental iOS/Android compile checks
 - `LICENSE`, `NOTICE.md`, packaging templates under `packaging/`
+- Remote image policy: https always, plain http only for localhost / private
+  IP literals / `*.local` on common ports; blocked or failed images become
+  placeholders. `--no-remote-images`, `--no-local-http`, config keys
+- iOS document-based app (`ios/MdrApp`) and Share Extension; Windows CI screenshots
 
 ### Changed
 - Default Cargo features are now `webview-backend` only (egui/tui opt-in)

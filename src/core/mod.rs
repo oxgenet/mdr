@@ -8,6 +8,7 @@ pub mod page;
 pub mod mermaid;
 pub mod search;
 pub mod toc;
+pub mod urlpolicy;
 pub mod watcher;
 
 use std::sync::atomic::{AtomicBool, Ordering};

@@ -206,6 +206,29 @@ DEVELOPMENT_TEAM=ABCDE12345 ASC_KEY_ID=… ASC_ISSUER_ID=… ASC_KEY_PATH=… io
 
 `scripts/ios-sim.sh` is the older, chrome-less test bed (tao window + bundled document).
 
+### Remote images (http / https policy)
+
+Images referenced by URL are loaded by the webview under a fixed policy,
+enforced in the Rust core before the page is built:
+
+| URL | Result |
+|---|---|
+| `https://…` | loaded (lazily) |
+| `http://localhost`, `http://127.0.0.1`, `http://[::1]`, `http://10.x`, `172.16–31.x`, `192.168.x`, `169.254.x`, `fc00::/7`, `fe80::/10`, `http://*.local` — on ports 80, 8080, 8443, 3000–3999, 5000–5999, 8000–8999, 9000–9999 | loaded (plain http is fine inside your own network) |
+| `http://` to any other host or port, credentials in the URL, other schemes | replaced by a placeholder showing the URL |
+
+Only IP literals and `*.local` names qualify as local; hostnames that merely
+resolve to a private address are not looked up (no DNS rebinding). Images that
+fail to load (offline, 404) become a placeholder too, and the page stays usable.
+
+```bash
+mdr --no-remote-images notes.md   # never fetch URL images
+mdr --no-local-http notes.md      # https only
+```
+
+`config.kdl`: `remote-images #false`, `allow-local-http #false`. The iOS app
+declares `NSAllowsLocalNetworking` for the same behaviour.
+
 ### TUI keybindings
 
 | Key | Action |

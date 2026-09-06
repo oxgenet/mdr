@@ -59,13 +59,25 @@ pub fn resolve_local_images(html: &str, base_dir: &std::path::Path) -> String {
         let full_tag = &caps[0];
         let src = &caps[1];
         vlog!("  IMG src={:?}", src);
-        // Skip URLs and existing data URIs
-        if src.starts_with("http://")
-            || src.starts_with("https://")
-            || src.starts_with("data:")
-            || src.starts_with("file://")
-        {
-            vlog!("    → skipped (remote/data URL)");
+        // Remote URLs: apply the http/https policy (see core::urlpolicy).
+        if src.starts_with("http://") || src.starts_with("https://") {
+            return match crate::core::urlpolicy::check_image_url(src) {
+                crate::core::urlpolicy::Verdict::Allow => {
+                    vlog!("    → remote, allowed");
+                    if full_tag.contains("loading=") {
+                        full_tag.to_string()
+                    } else {
+                        full_tag.replacen("<img ", "<img loading=\"lazy\" ", 1)
+                    }
+                }
+                crate::core::urlpolicy::Verdict::Block(reason) => {
+                    vlog!("    → remote, BLOCKED: {}", reason);
+                    blocked_image_placeholder(src, reason)
+                }
+            };
+        }
+        if src.starts_with("data:") || src.starts_with("file://") {
+            vlog!("    → skipped (data/file URL)");
             return full_tag.to_string();
         }
         // URL-decode the src path (comrak may percent-encode spaces etc.)
@@ -147,6 +159,15 @@ pub fn resolve_local_images(html: &str, base_dir: &std::path::Path) -> String {
         full_tag.to_string()
     })
     .to_string()
+}
+
+/// Placeholder shown instead of an image whose URL the policy rejected.
+fn blocked_image_placeholder(src: &str, reason: &str) -> String {
+    let esc = |t: &str| t.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;");
+    format!(
+        "<span class=\"img-blocked\" title=\"{}\">🚫 image not loaded ({})<br><code>{}</code></span>",
+        esc(reason), esc(reason), esc(src)
+    )
 }
 
 /// Decode percent-encoded URL path components (e.g. %20 -> space).
@@ -390,7 +411,7 @@ pub fn build_html(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: https: http:;">
 <style>{css}</style>
 <style>
 .expandable {{ position: relative; }}
@@ -428,6 +449,15 @@ body {{ padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-are
     body.editing #editor {{ width: 100vw; height: 45vh; border-right: none; border-bottom: 1px solid var(--border); }}
     body.editing .content {{ margin-left: 0; margin-top: 45vh; }}
 }}
+
+/* --- remote images: blocked-by-policy placeholder and load failures --- */
+.img-blocked, .img-failed {{
+    display: inline-block; max-width: 100%; padding: 8px 12px; margin: 4px 0;
+    border: 1px dashed var(--border); border-radius: 6px; color: var(--blockquote); font-size: 13px;
+    background: var(--code-bg); word-break: break-all;
+}}
+.img-blocked code, .img-failed code {{ font-size: 12px; }}
+img.img-loading {{ background: var(--code-bg); min-height: 2em; }}
 
 /* --- viewer / editor modes --- */
 body.no-toc .sidebar {{ display: none; }}
@@ -685,6 +715,24 @@ document.querySelector('.sidebar').addEventListener('click', function(e) {{
 </script>
 {highlight_script}
 {mermaid_script}
+<script>
+(function() {{
+    // Remote <img> that fails (offline, 404, timeout) → keep the page, show the URL.
+    document.addEventListener('error', function(e) {{
+        var img = e.target;
+        if (!img || img.tagName !== 'IMG' || !/^https?:/i.test(img.getAttribute('src') || '')) return;
+        var ph = document.createElement('span');
+        ph.className = 'img-failed';
+        var code = document.createElement('code');
+        code.textContent = img.getAttribute('src');
+        ph.appendChild(document.createTextNode('⚠ image failed to load'));
+        ph.appendChild(document.createElement('br'));
+        ph.appendChild(code);
+        var wrap = img.closest('.expandable') || img;
+        wrap.parentNode.replaceChild(ph, wrap);
+    }}, true);
+}})();
+</script>
 <div id="expand-overlay"><div id="expand-content"></div></div>
 <script>
 (function() {{
@@ -796,6 +844,17 @@ mod tests {
         assert!(js.contains("setAttribute('lang', \"ja\")"));
         let js = render_update_js("plain english", std::path::Path::new("."), Some("ko"));
         assert!(js.contains("setAttribute('lang', \"ko\")"));
+    }
+
+    #[test]
+    fn remote_images_follow_policy() {
+        let html = r#"<p><img src="https://example.com/a.png" alt="a"><img src="http://192.168.1.5/b.png" alt="b"><img src="http://example.com/c.png" alt="c"></p>"#;
+        let out = resolve_local_images(html, std::path::Path::new("."));
+        assert!(out.contains(r#"src="https://example.com/a.png""#));
+        assert!(out.contains(r#"src="http://192.168.1.5/b.png""#));
+        assert!(!out.contains(r#"src="http://example.com/c.png""#), "public http must be replaced");
+        assert!(out.contains("img-blocked") && out.contains("http://example.com/c.png"));
+        assert!(out.contains(r#"loading="lazy""#));
     }
 
     // --- highlight.js / KDL highlighting tests ---
@@ -1060,7 +1119,9 @@ mod tests {
         let dir = std::env::temp_dir();
         let html = r#"<img src="https://example.com/image.svg" alt="remote">"#;
         let result = resolve_local_images(html, &dir);
-        assert_eq!(result, html, "Remote URLs should be preserved unchanged");
+        assert!(result.contains(r#"src="https://example.com/image.svg""#), "Remote URL must be preserved");
+        assert!(result.contains(r#"loading="lazy""#), "Remote images load lazily");
+        assert!(!result.contains("img-blocked"));
     }
 
     #[test]

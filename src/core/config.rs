@@ -56,11 +56,13 @@ mod tests {
 
     #[test]
     fn load_parses_toc_and_mode() {
-        let path = tmp_config("toc_mode", "toc #true\nmode editor\nlang zh-Hant\n");
+        let path = tmp_config("toc_mode", "toc #true\nmode editor\nlang zh-Hant\nremote-images #false\nallow-local-http #true\n");
         let cfg = load(&path).unwrap();
         assert_eq!(cfg.toc, Some(true));
         assert_eq!(cfg.mode.as_deref(), Some("editor"));
         assert_eq!(cfg.lang.as_deref(), Some("zh-Hant"));
+        assert_eq!(cfg.remote_images, Some(false));
+        assert_eq!(cfg.allow_local_http, Some(true));
         let _ = std::fs::remove_file(&path);
     }
 
@@ -103,6 +105,10 @@ pub struct Config {
     pub mode: Option<String>,
     /// Document language for CJK rendering: auto (default), ja, zh-Hans, zh-Hant, ko.
     pub lang: Option<String>,
+    /// Load images from http(s) URLs at all (default: true).
+    pub remote_images: Option<bool>,
+    /// Allow plain-http images for localhost / private IP literals / *.local (default: true).
+    pub allow_local_http: Option<bool>,
 }
 
 const DEFAULT_CONFIG: &str = "\
@@ -123,6 +129,12 @@ backend webview
 // Document language for CJK glyphs/fonts: auto (default), ja, zh-Hans, zh-Hant, ko.
 // Front matter `lang:` in a document always wins over this.
 // lang ja
+
+// Remote images: https always; plain http only for localhost, private IP
+// literals (10/8, 172.16/12, 192.168/16, 169.254/16, fc00::/7, fe80::/10) and
+// *.local, on common web ports. Set to #false to turn either off.
+// remote-images #true
+// allow-local-http #true
 ";
 
 /// Returns the default config file path: `~/.config/mdr/config.kdl`.
@@ -190,6 +202,12 @@ pub fn load(path: &PathBuf) -> Result<Config, Box<dyn std::error::Error>> {
                 if let Some(kdl::KdlValue::String(s)) = node.get(0) {
                     cfg.lang = Some(s.clone());
                 }
+            }
+            "remote-images" | "remote_images" => {
+                cfg.remote_images = Some(matches!(node.get(0), None | Some(kdl::KdlValue::Bool(true))));
+            }
+            "allow-local-http" | "allow_local_http" => {
+                cfg.allow_local_http = Some(matches!(node.get(0), None | Some(kdl::KdlValue::Bool(true))));
             }
             other => eprintln!("mdr: unknown config key '{}'", other),
         }

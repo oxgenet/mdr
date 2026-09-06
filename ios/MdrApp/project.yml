@@ -46,6 +46,11 @@ targets:
         UISupportsDocumentBrowser: true           # app is a document-based app (Files-like browser)
         UIFileSharingEnabled: true                # app folder visible in Files
         NSPhotoLibraryUsageDescription: Insert photos into Markdown documents.
+        # Remote images: https anywhere; plain http only to local / private addresses
+        # (same policy as the desktop build, enforced in the Rust core).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: Show images that a document links from devices on your local network (for example a NAS).
         CFBundleDocumentTypes:
           - CFBundleTypeName: Markdown Document
             CFBundleTypeRole: Editor

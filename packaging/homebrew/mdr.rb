@@ -9,7 +9,10 @@ class Mdr < Formula
   license "MIT"
 
   # `brew install --HEAD oxgenet/tap/mdr` builds the current main branch from source.
-  head "https://github.com/oxgenet/mdr.git", branch: "main"
+  head do
+    url "https://github.com/oxgenet/mdr.git", branch: "main"
+    depends_on "rust" => :build
+  end
 
   # Not the same package as CleverCloud/misc/mdr (same binary name, different project);
   # uninstall that one first: brew uninstall mdr
@@ -31,13 +34,11 @@ class Mdr < Formula
     # (libwebkit2gtk-4.1, libgtk-3); install them with your distro's package manager.
   end
 
-  depends_on "rust" => :build if build.head?
-
   def install
     if build.head?
       # Source build (webview backend only, as shipped by this fork). --locked uses
       # the committed Cargo.lock so Homebrew's rustc version keeps working.
-      system "cargo", "install", "--locked", *std_cargo_args
+      system "cargo", "install", *std_cargo_args
     else
       bin.install "mdr"
     end

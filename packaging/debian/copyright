@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: mdr
-Upstream-Contact: tkykszk@gmail.com
+Upstream-Contact: oxge.net <tkykszk@gmail.com>
 Source: https://github.com/oxgenet/mdr
 Comment:
  This package is the oxgenet fork of mdr by Clever Cloud
@@ -9,7 +9,7 @@ Comment:
 
 Files: *
 Copyright: 2026 Clever Cloud <opensource@clever-cloud.com>
-           2026 tkykszk@gmail.com
+           2026 oxge.net
 License: MIT
 
 Files: assets/mermaid.min.js

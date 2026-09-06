@@ -13,8 +13,8 @@ are enabled.
 | Project name | mdr (oxgenet fork) |
 | Binary | `mdr` |
 | Repository | https://github.com/oxgenet/mdr |
-| Maintainer | tkykszk@gmail.com |
-| License | MIT — `LICENSE` carries both copyright lines (Clever Cloud + tkykszk@gmail.com) |
+| Maintainer | oxge.net <tkykszk@gmail.com> |
+| License | MIT — `LICENSE` carries both copyright lines (Clever Cloud + oxge.net) |
 | Attribution | `NOTICE.md` (fork of https://github.com/CleverCloud/mdr, not affiliated) |
 | Homebrew | `oxgenet/tap/mdr` (tap repo `oxgenet/homebrew-tap`) |
 | Scoop | bucket `oxgenet` (repo `oxgenet/scoop-bucket`), app `mdr` |

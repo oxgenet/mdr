@@ -9,7 +9,7 @@
     "notes": [
         "This is the oxgenet fork of mdr, not the original Clever Cloud release.",
         "Original project: https://github.com/CleverCloud/mdr (MIT).",
-        "Fork copyright (c) 2026 tkykszk@gmail.com. See NOTICE.md in the repository."
+        "Fork copyright (c) 2026 oxge.net. See NOTICE.md in the repository."
     ],
     "architecture": {
         "64bit": {

@@ -32,15 +32,15 @@ ManifestVersion: 1.6.0
 PackageIdentifier: oxgenet.mdr
 PackageVersion: 0.4.0
 PackageLocale: en-US
-Publisher: tkykszk
+Publisher: oxge.net
 PublisherUrl: https://github.com/oxgenet
 PublisherSupportUrl: https://github.com/oxgenet/mdr/issues
-Author: tkykszk@gmail.com
+Author: oxge.net
 PackageName: mdr (oxgenet fork)
 PackageUrl: https://github.com/oxgenet/mdr
 License: MIT
 LicenseUrl: https://github.com/oxgenet/mdr/blob/main/LICENSE
-Copyright: Copyright (c) 2026 Clever Cloud; Copyright (c) 2026 tkykszk@gmail.com
+Copyright: Copyright (c) 2026 Clever Cloud; Copyright (c) 2026 oxge.net
 CopyrightUrl: https://github.com/oxgenet/mdr/blob/main/NOTICE.md
 ShortDescription: Markdown viewer/editor with Mermaid and CJK-aware rendering (fork of Clever Cloud's mdr)
 Description: |-

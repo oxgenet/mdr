@@ -8,7 +8,7 @@ repository = "https://github.com/oxgenet/mdr"
 homepage = "https://github.com/oxgenet/mdr"
 readme = "README.md"
 # Original work: Clever Cloud <opensource@clever-cloud.com> (https://github.com/CleverCloud/mdr)
-authors = ["tkykszk <tkykszk@gmail.com>", "Clever Cloud <opensource@clever-cloud.com>"]
+authors = ["oxge.net <tkykszk@gmail.com>", "Clever Cloud <opensource@clever-cloud.com>"]
 # This fork is not published to crates.io; the `mdr` crate there is upstream's.
 publish = false
 categories = ["command-line-utilities", "text-processing"]
@@ -95,8 +95,8 @@ libc = "0.2"
 
 [package.metadata.deb]
 name = "mdr"
-maintainer = "tkykszk <tkykszk@gmail.com>"
-copyright = "2026 Clever Cloud <opensource@clever-cloud.com>, 2026 tkykszk@gmail.com"
+maintainer = "oxge.net <tkykszk@gmail.com>"
+copyright = "2026 Clever Cloud <opensource@clever-cloud.com>, 2026 oxge.net"
 license-file = ["packaging/debian/copyright", "0"]
 section = "text"
 assets = [
@@ -113,7 +113,7 @@ not affiliated with Clever Cloud. See /usr/share/doc/mdr/NOTICE.md."""
 
 [package.metadata.generate-rpm]
 license = "MIT"
-vendor = "tkykszk <tkykszk@gmail.com>"
+vendor = "oxge.net <tkykszk@gmail.com>"
 url = "https://github.com/oxgenet/mdr"
 assets = [
   { source = "target/release/mdr", dest = "/usr/bin/mdr", mode = "0755" },

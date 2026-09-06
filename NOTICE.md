@@ -8,9 +8,9 @@ This repository, **oxgenet/mdr**, is a fork of **mdr** by Clever Cloud.
 | Original author | Clever Cloud <opensource@clever-cloud.com> (initial commit by Quentin ADAM, 2026-02-22) |
 | Original license | MIT — declared by the upstream project in `Cargo.toml` (`license = "MIT"`) and `README.md` ("## License: MIT"). Upstream ships no separate `LICENSE` file; the MIT text in this repository's `LICENSE` reproduces the standard MIT terms under which upstream published the work. |
 | Fork point | upstream `main` at commit `26e9250` (release v0.3.2, 2026-06-22) |
-| Fork maintainer | tkykszk@gmail.com |
+| Fork maintainer | oxge.net <tkykszk@gmail.com> |
 | Fork repository | https://github.com/oxgenet/mdr |
-| Fork license | MIT (same terms). Modifications are Copyright (c) 2026 tkykszk@gmail.com. |
+| Fork license | MIT (same terms). Modifications are Copyright (c) 2026 oxge.net. |
 
 ## Relationship to the original
 

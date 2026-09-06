@@ -1,0 +1,6 @@
+[mdr] webview: file_path=D:\a\mdr\mdr\tests\samples\lang\zh-hant.md
+[mdr] webview: base_dir=\\?\D:\a\mdr\mdr\tests\samples\lang
+[mdr] webview: markdown_content length=202 bytes
+[mdr] webview: html_body length=3281 bytes
+[mdr] resolve_local_images: base_dir=\\?\D:\a\mdr\mdr\tests\samples\lang
+[mdr] webview: lang="zh-Hant"

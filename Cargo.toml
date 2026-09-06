@@ -18,7 +18,12 @@ keywords = ["markdown", "viewer", "mermaid", "tui", "webview"]
 # This fork ships the webview viewer/editor by default. Add egui/tui explicitly:
 #   cargo build --features egui-backend,tui-backend
 default = ["webview-backend"]
+# SVG rasterisation (local .svg images, Mermaid fallback) + the shared page
+# template and C FFI. Mobile shells build the lib with just this feature:
+#   cargo build --lib --no-default-features --features svg --target aarch64-apple-ios-sim
+svg = ["dep:resvg", "dep:usvg", "dep:tiny-skia"]
 egui-backend = [
+  "svg",
   "dep:eframe",
   "dep:egui_commonmark",
   "dep:resvg",
@@ -27,6 +32,7 @@ egui-backend = [
   "dep:fontdb",
 ]
 webview-backend = [
+  "svg",
   "dep:wry",
   "dep:tao",
   "dep:muda",
@@ -35,6 +41,7 @@ webview-backend = [
   "dep:tiny-skia",
 ]
 tui-backend = [
+  "svg",
   "dep:ratatui",
   "dep:crossterm",
   "dep:ratatui-image",
@@ -46,6 +53,16 @@ tui-backend = [
   "image/gif",
   "image/webp",
 ]
+
+[lib]
+name = "mdr"
+path = "src/lib.rs"
+# staticlib is linked into the iOS/Android shells (see ios/)
+crate-type = ["rlib", "staticlib"]
+
+[[bin]]
+name = "mdr"
+path = "src/main.rs"
 
 [dependencies]
 # Core

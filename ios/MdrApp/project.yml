@@ -1,0 +1,74 @@
+# XcodeGen spec for the iOS shell. Generate with:  xcodegen generate  (in this dir)
+# The Rust core is linked as a static library built by ../build-app.sh.
+name: MdrApp
+options:
+  bundleIdPrefix: net.oxge
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGN_IDENTITY: ""
+    DEVELOPMENT_TEAM: ""
+targets:
+  MdrApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    info:
+      path: Info.plist
+      properties:
+        CFBundleName: mdr
+        CFBundleDisplayName: mdr
+        CFBundleIdentifier: net.oxge.mdr
+        CFBundleShortVersionString: "0.4.0"
+        CFBundleVersion: "1"
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+        # --- "Acrobat-style" document handling for .md ---
+        LSSupportsOpeningDocumentsInPlace: true   # edit the original file, not a copy
+        UISupportsDocumentBrowser: true           # app is a document-based app (Files-like browser)
+        UIFileSharingEnabled: true                # app folder visible in Files
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Markdown Document
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner                  # first choice for .md in Files / share sheet
+            LSItemContentTypes:
+              - net.daringfireball.markdown
+              - public.plain-text
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: net.daringfireball.markdown
+            UTTypeDescription: Markdown Document
+            UTTypeConformsTo:
+              - public.plain-text
+            UTTypeTagSpecification:
+              public.filename-extension: [md, markdown, mdown, mkd, mkdn]
+              public.mime-type: [text/markdown, text/x-markdown]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.oxge.mdr
+        SWIFT_OBJC_BRIDGING_HEADER: $(PROJECT_DIR)/../mdr_core.h
+        OTHER_LDFLAGS: ["-lmdr"]
+        "LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]": "$(PROJECT_DIR)/../../target/aarch64-apple-ios-sim/release"
+        "LIBRARY_SEARCH_PATHS[sdk=iphoneos*]": "$(PROJECT_DIR)/../../target/aarch64-apple-ios/release"
+        ENABLE_BITCODE: "NO"
+        # The Rust core is built for arm64 only (Apple Silicon simulator / devices)
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
+        ARCHS: arm64
+        SWIFT_OPTIMIZATION_LEVEL: "-O"

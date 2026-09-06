@@ -1,5 +1,4 @@
-mod backend;
-mod core;
+use mdr::{backend, core};
 
 use clap::Parser;
 use std::io::{self, IsTerminal, Read};

@@ -4,3 +4,4 @@ Cargo.lock
 *.pdb
 .DS_Store
 .claude/
+/ios/MdrApp/MdrApp.xcodeproj

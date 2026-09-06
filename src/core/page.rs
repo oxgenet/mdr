@@ -1,0 +1,1233 @@
+//! Rendered page assembly shared by the desktop webview backend and the FFI
+//! (iOS/Android shells): HTML template, local image embedding, live-update JS.
+
+use crate::core::markdown::{parse_markdown, GITHUB_CSS};
+use crate::core::toc;
+use crate::vlog;
+
+/// Startup UI options for the webview backend.
+#[derive(Clone, Debug, Default)]
+pub struct ViewOptions {
+    /// Start in editor mode (source pane + live preview). Default: viewer mode.
+    pub editor: bool,
+    /// Show the table-of-contents sidebar at startup. Default: hidden.
+    pub toc: bool,
+    /// Explicit document language tag (`ja`, `zh-Hans`, ...). `None`/`auto` = detect.
+    pub lang: Option<String>,
+}
+
+/// Resolve the document language tag ("" when none) for the `lang` attribute.
+pub fn lang_tag(content: &str, explicit: Option<&str>) -> String {
+    crate::core::lang::resolve(content, explicit)
+        .map(|l| l.tag().to_string())
+        .unwrap_or_default()
+}
+
+/// Build the JS snippet that swaps in freshly rendered body + TOC and updates `lang`.
+pub fn render_update_js(content: &str, base_dir: &std::path::Path, explicit_lang: Option<&str>) -> String {
+    let new_html = parse_markdown(content);
+    let new_html = resolve_local_images(&new_html, base_dir);
+    let new_toc = toc::extract_toc(content);
+    let toc_html = build_toc_html(&new_toc);
+    let body_json = serde_json::to_string(&new_html).unwrap_or_default();
+    let toc_json = serde_json::to_string(&toc_html).unwrap_or_default();
+    let lang_json = serde_json::to_string(&lang_tag(content, explicit_lang)).unwrap_or_default();
+    format!(
+        "document.documentElement.setAttribute('lang', {}); document.querySelector('.content').innerHTML = {}; document.querySelector('.sidebar ul').innerHTML = {}; if (window.hljs) hljs.highlightAll(); if (window.mermaid) {{ try {{ mermaid.run(); }} catch (e) {{}} }}",
+        lang_json, body_json, toc_json
+    )
+}
+
+/// Escape text for safe embedding inside a `<textarea>` element.
+pub fn html_escape_text(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
+/// Resolve local image paths to inline base64 data URIs.
+/// wry's `with_html()` does not allow loading file:// URLs, so we must embed images directly.
+/// SVG files are rasterized to PNG first (to avoid executing embedded scripts/links).
+/// Handles both `<img src="...">` and `<img alt="..." src="...">` attribute orders.
+pub fn resolve_local_images(html: &str, base_dir: &std::path::Path) -> String {
+    use std::sync::OnceLock;
+    vlog!("resolve_local_images: base_dir={}", base_dir.display());
+    // Match the entire <img ...> tag with src="..." anywhere inside
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| regex::Regex::new(r#"<img\s[^>]*?src="([^"]+)"[^>]*?>"#).unwrap());
+    static RE_SRC: OnceLock<regex::Regex> = OnceLock::new();
+    let re_src = RE_SRC.get_or_init(|| regex::Regex::new(r#"src="[^"]+""#).unwrap());
+    re.replace_all(html, |caps: &regex::Captures| {
+        let full_tag = &caps[0];
+        let src = &caps[1];
+        vlog!("  IMG src={:?}", src);
+        // Skip URLs and existing data URIs
+        if src.starts_with("http://")
+            || src.starts_with("https://")
+            || src.starts_with("data:")
+            || src.starts_with("file://")
+        {
+            vlog!("    → skipped (remote/data URL)");
+            return full_tag.to_string();
+        }
+        // URL-decode the src path (comrak may percent-encode spaces etc.)
+        let decoded_src = percent_decode(src);
+        // Resolve relative path
+        let abs_path = base_dir.join(&decoded_src);
+        vlog!("    abs_path={}", abs_path.display());
+        vlog!("    exists={}", abs_path.exists());
+        // Path traversal protection: ensure resolved path is within base_dir
+        if let (Ok(canonical), Ok(canonical_base)) =
+            (abs_path.canonicalize(), base_dir.canonicalize())
+        {
+            if !canonical.starts_with(&canonical_base) {
+                vlog!(
+                    "    → BLOCKED (path traversal: {} escapes {})",
+                    canonical.display(),
+                    canonical_base.display()
+                );
+                return full_tag.to_string();
+            }
+        }
+        if abs_path.exists() {
+            if let Err(e) = crate::core::image_validation::validate_image_file(&abs_path) {
+                vlog!("    → INVALID image: {}", e);
+                return format!(
+                    "<span style=\"color:red;\">[⚠ Invalid image: {} — {}]</span>",
+                    abs_path.file_name().unwrap_or_default().to_string_lossy(),
+                    e
+                );
+            }
+            let is_svg = abs_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.eq_ignore_ascii_case("svg"))
+                .unwrap_or(false);
+            vlog!("    is_svg={}", is_svg);
+            if is_svg {
+                match rasterize_svg_to_png_data_uri(&abs_path) {
+                    Ok(png_data_uri) => {
+                        vlog!("    → SVG rasterized to PNG ({} bytes)", png_data_uri.len());
+                        return re_src
+                            .replace(full_tag, format!("src=\"{}\"", png_data_uri).as_str())
+                            .to_string();
+                    }
+                    Err(e) => {
+                        vlog!("    → SVG rasterization FAILED: {}", e);
+                    }
+                }
+                // Fallback: embed SVG as data URI (scripts won't execute in <img> context)
+                match file_to_data_uri(&abs_path) {
+                    Ok(data_uri) => {
+                        vlog!("    → SVG embedded as data URI ({} bytes)", data_uri.len());
+                        return re_src
+                            .replace(full_tag, format!("src=\"{}\"", data_uri).as_str())
+                            .to_string();
+                    }
+                    Err(e) => {
+                        vlog!("    → SVG file_to_data_uri FAILED: {}", e);
+                    }
+                }
+                vlog!("    → SVG: all attempts failed, keeping original tag");
+                return full_tag.to_string();
+            }
+            // For non-SVG images, use base64 data URI
+            match file_to_data_uri(&abs_path) {
+                Ok(data_uri) => {
+                    vlog!("    → embedded as data URI ({} bytes)", data_uri.len());
+                    return re_src
+                        .replace(full_tag, format!("src=\"{}\"", data_uri).as_str())
+                        .to_string();
+                }
+                Err(e) => {
+                    vlog!("    → file_to_data_uri FAILED: {}", e);
+                }
+            }
+        } else {
+            vlog!("    → file NOT FOUND");
+        }
+        full_tag.to_string()
+    })
+    .to_string()
+}
+
+/// Decode percent-encoded URL path components (e.g. %20 -> space).
+fn percent_decode(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '%' {
+            let hex: String = chars.by_ref().take(2).collect();
+            if hex.len() == 2 {
+                if let Ok(byte) = u8::from_str_radix(&hex, 16) {
+                    result.push(byte as char);
+                    continue;
+                }
+            }
+            result.push('%');
+            result.push_str(&hex);
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
+/// Convert a local file to a base64 data URI string.
+const MAX_IMAGE_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB
+
+fn file_to_data_uri(path: &std::path::Path) -> Result<String, Box<dyn std::error::Error>> {
+    use base64::Engine;
+    let metadata = std::fs::metadata(path)?;
+    if metadata.len() > MAX_IMAGE_FILE_SIZE {
+        return Err(format!(
+            "image file too large ({} bytes, max {})",
+            metadata.len(),
+            MAX_IMAGE_FILE_SIZE
+        )
+        .into());
+    }
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let mime = match ext.to_lowercase().as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        _ => "application/octet-stream",
+    };
+    let data = std::fs::read(path)?;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+    Ok(format!("data:{};base64,{}", mime, b64))
+}
+
+pub fn build_toc_html(entries: &[toc::TocEntry]) -> String {
+    let mut toc = String::new();
+    for entry in entries {
+        toc.push_str(&format!(
+            "<li class=\"toc-h{}\"><a href=\"#{}\">{}</a></li>",
+            entry.level, entry.anchor, entry.text
+        ));
+    }
+    toc
+}
+
+/// Mermaid.js embedded at compile time — only injected when the Rust renderer fails.
+const MERMAID_JS: &str = include_str!("../../assets/mermaid.min.js");
+
+/// Highlight.js embedded at compile time — only injected when code blocks are present.
+const HIGHLIGHT_JS: &str = include_str!("../../assets/highlight.min.js");
+
+/// KDL language definition for highlight.js — registered as 'kdl'.
+const HIGHLIGHT_KDL: &str = include_str!("../../assets/kdl.highlight.js");
+
+/// GitHub light/dark syntax highlight themes combined with prefers-color-scheme media queries.
+const HIGHLIGHT_CSS: &str = concat!(
+    "pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5px}",
+    "@media (prefers-color-scheme:light){",
+    ".hljs{color:#24292e;background:#fff}",
+    ".hljs-doctag,.hljs-keyword,.hljs-meta .hljs-keyword,.hljs-template-tag,.hljs-template-variable,.hljs-type,.hljs-variable.language_{color:#d73a49}",
+    ".hljs-title,.hljs-title.class_,.hljs-title.class_.inherited__,.hljs-title.function_{color:#6f42c1}",
+    ".hljs-attr,.hljs-attribute,.hljs-literal,.hljs-meta,.hljs-number,.hljs-operator,.hljs-selector-attr,.hljs-selector-class,.hljs-selector-id,.hljs-variable{color:#005cc5}",
+    ".hljs-meta .hljs-string,.hljs-regexp,.hljs-string{color:#032f62}",
+    ".hljs-built_in,.hljs-symbol{color:#e36209}",
+    ".hljs-code,.hljs-comment,.hljs-formula{color:#6a737d}",
+    ".hljs-name,.hljs-quote,.hljs-selector-pseudo,.hljs-selector-tag{color:#22863a}",
+    ".hljs-subst{color:#24292e}",
+    ".hljs-section{color:#005cc5;font-weight:700}",
+    ".hljs-bullet{color:#735c0f}",
+    ".hljs-emphasis{color:#24292e;font-style:italic}",
+    ".hljs-strong{color:#24292e;font-weight:700}",
+    ".hljs-addition{color:#22863a;background-color:#f0fff4}",
+    ".hljs-deletion{color:#b31d28;background-color:#ffeef0}",
+    "}",
+    "@media (prefers-color-scheme:dark){",
+    ".hljs{color:#c9d1d9;background:#0d1117}",
+    ".hljs-doctag,.hljs-keyword,.hljs-meta .hljs-keyword,.hljs-template-tag,.hljs-template-variable,.hljs-type,.hljs-variable.language_{color:#ff7b72}",
+    ".hljs-title,.hljs-title.class_,.hljs-title.class_.inherited__,.hljs-title.function_{color:#d2a8ff}",
+    ".hljs-attr,.hljs-attribute,.hljs-literal,.hljs-meta,.hljs-number,.hljs-operator,.hljs-selector-attr,.hljs-selector-class,.hljs-selector-id,.hljs-variable{color:#79c0ff}",
+    ".hljs-meta .hljs-string,.hljs-regexp,.hljs-string{color:#a5d6ff}",
+    ".hljs-built_in,.hljs-symbol{color:#ffa657}",
+    ".hljs-code,.hljs-comment,.hljs-formula{color:#8b949e}",
+    ".hljs-name,.hljs-quote,.hljs-selector-pseudo,.hljs-selector-tag{color:#7ee787}",
+    ".hljs-subst{color:#c9d1d9}",
+    ".hljs-section{color:#1f6feb;font-weight:700}",
+    ".hljs-bullet{color:#f2cc60}",
+    ".hljs-emphasis{color:#c9d1d9;font-style:italic}",
+    ".hljs-strong{color:#c9d1d9;font-weight:700}",
+    ".hljs-addition{color:#aff5b4;background-color:#033a16}",
+    ".hljs-deletion{color:#ffdcd7;background-color:#67060c}",
+    "}",
+    // KDL-specific overrides (higher specificity via .language-kdl, no !important needed)
+    // Node names: bold red
+    ".language-kdl .hljs-title,.language-kdl .function_{color:#cc0000;font-weight:bold}",
+    // Property keys: purple italic (distinct from values)
+    ".language-kdl .hljs-attr{color:#6f42c1;font-style:italic}",
+    // Attribute values: light blue
+    ".language-kdl .hljs-string,.language-kdl .hljs-number,.language-kdl .hljs-literal{color:#0969da}",
+    "@media (prefers-color-scheme:dark){",
+    ".language-kdl .hljs-title,.language-kdl .function_{color:#f87171}",
+    ".language-kdl .hljs-attr{color:#d2a8ff;font-style:italic}",
+    ".language-kdl .hljs-string,.language-kdl .hljs-number,.language-kdl .hljs-literal{color:#79c0ff}",
+    "}"
+);
+
+/// Rasterize an SVG file to PNG and return as a base64 data URI.
+/// This is safer than inlining SVG because SVG can contain scripts, links, and styles
+/// that would execute in the page context and cause unwanted navigation/requests.
+/// Returns Err if the file is not a valid SVG (e.g., an HTML page saved with .svg extension).
+fn rasterize_svg_to_png_data_uri(
+    path: &std::path::Path,
+) -> Result<String, Box<dyn std::error::Error>> {
+    use base64::Engine;
+    use std::sync::{Arc, OnceLock};
+
+    let svg_data = std::fs::read_to_string(path)?;
+
+    // Reject files that aren't actually SVG (e.g. HTML pages saved with .svg extension)
+    let trimmed = svg_data.trim_start();
+    if !trimmed.starts_with('<')
+        || trimmed.starts_with("<!DOCTYPE html")
+        || trimmed.starts_with("<html")
+    {
+        if !trimmed.contains("<svg") {
+            return Err("File is not a valid SVG (possibly an HTML page)".into());
+        }
+    }
+
+    // Max pixel dimension to avoid memory issues
+    const MAX_DIM: f32 = 8192.0;
+
+    // Reuse font database across calls
+    static FONTDB: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
+    let fontdb = FONTDB.get_or_init(|| {
+        let mut db = usvg::fontdb::Database::new();
+        db.load_system_fonts();
+        Arc::new(db)
+    });
+
+    let mut options = usvg::Options::default();
+    options.fontdb = Arc::clone(fontdb);
+    let tree = usvg::Tree::from_str(&svg_data, &options)?;
+    let size = tree.size();
+    let svg_w = size.width();
+    let svg_h = size.height();
+
+    if svg_w <= 0.0 || svg_h <= 0.0 {
+        return Err("SVG has zero dimensions".into());
+    }
+
+    // Scale 2x for retina, but cap at MAX_DIM
+    let ideal_scale = 2.0_f32;
+    let max_scale_w = MAX_DIM / svg_w;
+    let max_scale_h = MAX_DIM / svg_h;
+    let scale = ideal_scale.min(max_scale_w).min(max_scale_h);
+
+    let width = (svg_w * scale) as u32;
+    let height = (svg_h * scale) as u32;
+
+    if width == 0 || height == 0 {
+        return Err("SVG dimensions too small after scaling".into());
+    }
+
+    let mut pixmap = tiny_skia::Pixmap::new(width, height).ok_or("Failed to create pixmap")?;
+    let transform = tiny_skia::Transform::from_scale(scale, scale);
+    resvg::render(&tree, transform, &mut pixmap.as_mut());
+
+    let png_data = pixmap.encode_png()?;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&png_data);
+    Ok(format!("data:image/png;base64,{}", b64))
+}
+
+pub fn build_html(
+    body: &str,
+    toc_entries: &[toc::TocEntry],
+    source: &str,
+    lang: &str,
+    opts: &ViewOptions,
+) -> String {
+    let lang_attr = if lang.is_empty() {
+        String::new()
+    } else {
+        format!(" lang=\"{}\"", html_escape_text(lang).replace('"', "&quot;"))
+    };
+    let toc_html = build_toc_html(toc_entries);
+    let mut body_class = String::new();
+    if !opts.toc {
+        body_class.push_str("no-toc ");
+    }
+    if opts.editor {
+        body_class.push_str("editing ");
+    }
+    // A leading newline inside <textarea> is dropped by the HTML parser, so add one
+    // to preserve a source that itself starts with a newline.
+    let editor_text = format!("\n{}", html_escape_text(source));
+    // Only include mermaid.js if there are fallback blocks that need JS rendering
+    let mermaid_script = if body.contains(r#"class="mermaid""#) {
+        format!(
+            r#"<script>{}</script>
+<script>mermaid.initialize({{ startOnLoad: true, theme: (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'default' }});</script>"#,
+            MERMAID_JS
+        )
+    } else {
+        String::new()
+    };
+    // Only include highlight.js when there are fenced code blocks to highlight
+    let highlight_script = if body.contains("<pre><code") {
+        format!(
+            r#"<style>{css}</style><script>{js}</script><script>{kdl}hljs.registerLanguage('kdl',hljsDefineKdl);hljs.highlightAll();</script>"#,
+            css = HIGHLIGHT_CSS,
+            js = HIGHLIGHT_JS,
+            kdl = HIGHLIGHT_KDL,
+        )
+    } else {
+        String::new()
+    };
+
+    format!(
+        r#"<!DOCTYPE html>
+<html{lang_attr}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
+<style>{css}</style>
+<style>
+.expandable {{ position: relative; }}
+.expand-btn {{
+    position: absolute; top: 6px; right: 6px;
+    width: 28px; height: 28px;
+    background: rgba(0,0,0,0.55); border: none; border-radius: 4px;
+    cursor: pointer; opacity: 0; transition: opacity 0.15s;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0; z-index: 10;
+}}
+.expandable:hover .expand-btn {{ opacity: 1; }}
+.expand-btn:hover {{ background: rgba(0,0,0,0.80); }}
+#expand-overlay {{
+    display: none; position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.85); z-index: 2147483647;
+    align-items: center; justify-content: center; cursor: zoom-out;
+}}
+#expand-content {{ cursor: default; }}
+#expand-content img {{ width: 95vw; height: 95vh; object-fit: contain; }}
+#expand-content svg {{ width: 95vw; height: 95vh; }}
+.expandable img, .expandable svg {{ cursor: zoom-in; }}
+.content svg {{ width: 100% !important; height: auto !important; display: block; }}
+
+/* --- mobile (iOS/Android webviews): keep content clear of the notch / status bar --- */
+body {{ padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }}
+#kebab {{ top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(14px + env(safe-area-inset-right, 0px)); }}
+.content {{ min-width: 0; max-width: 100%; box-sizing: border-box; }}
+.mermaid-diagram {{ max-width: 100%; overflow-x: auto; }}
+.content img {{ max-width: 100%; height: auto; }}
+@media (max-width: 700px) {{
+    .content {{ width: 100%; padding: 16px 14px 3rem; margin: 0; }}
+    .content table {{ display: block; overflow-x: auto; }}
+    body.editing #editor {{ width: 100vw; height: 45vh; border-right: none; border-bottom: 1px solid var(--border); }}
+    body.editing .content {{ margin-left: 0; margin-top: 45vh; }}
+}}
+
+/* --- viewer / editor modes --- */
+body.no-toc .sidebar {{ display: none; }}
+body.no-toc .content {{ margin-left: 0; }}
+body.no-toc:not(.editing) .content {{ margin: 0 auto; }}
+#editor {{
+    display: none; position: fixed; top: 0; left: 0;
+    width: 50vw; height: 100vh; box-sizing: border-box;
+    margin: 0; padding: 32px 20px 3rem; border: none; border-right: 1px solid var(--border);
+    resize: none; outline: none; white-space: pre; overflow: auto;
+    background: var(--code-bg); color: var(--fg);
+    font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    tab-size: 4;
+}}
+body.editing #editor {{ display: block; }}
+body.editing .sidebar {{ display: none; }}
+body.editing .content {{ margin-left: 50vw; max-width: none; }}
+#kebab {{ position: fixed; top: 10px; right: 14px; z-index: 1000; }}
+#kebab-btn {{
+    width: 30px; height: 30px; border-radius: 6px; cursor: pointer;
+    border: 1px solid transparent; background: transparent; color: var(--blockquote);
+    font-size: 18px; line-height: 1; padding: 0; opacity: 0.55; transition: opacity 0.15s;
+}}
+#kebab-btn:hover, #kebab.open #kebab-btn {{ opacity: 1; background: var(--sidebar-hover); border-color: var(--border); }}
+#kebab-menu {{
+    display: none; position: absolute; right: 0; top: 36px; min-width: 200px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18); padding: 6px 0; overflow: hidden;
+}}
+#kebab.open #kebab-menu {{ display: block; }}
+#kebab-menu button {{
+    display: block; width: 100%; text-align: left; padding: 8px 14px;
+    background: none; border: none; color: var(--fg); cursor: pointer; font-size: 13px;
+}}
+#kebab-menu button:hover {{ background: var(--sidebar-hover); }}
+#kebab-menu button.editor-only {{ display: none; }}
+body.editing #kebab-menu button.editor-only {{ display: block; }}
+#kebab-menu .sep {{ height: 1px; background: var(--border); margin: 6px 0; }}
+#kebab-menu .hint {{ float: right; color: var(--blockquote); font-size: 11px; margin-left: 16px; }}
+#toast {{
+    display: none; position: fixed; bottom: 18px; right: 18px; z-index: 1000;
+    padding: 8px 14px; border-radius: 6px; font-size: 13px;
+    background: var(--code-bg); color: var(--fg); border: 1px solid var(--border);
+}}
+</style>
+</head>
+<body class="{body_class}">
+<nav class="sidebar">
+<p class="sidebar-title">Table of Contents</p>
+<ul>{toc}</ul>
+</nav>
+<textarea id="editor" spellcheck="false" autocomplete="off">{editor_text}</textarea>
+<div class="content">
+{body}
+</div>
+<div id="kebab">
+    <button id="kebab-btn" title="Menu" aria-label="Menu">&#8942;</button>
+    <div id="kebab-menu">
+        <button data-act="mode"></button>
+        <button data-act="toc"></button>
+        <div class="sep editor-only"></div>
+        <button data-act="save" class="editor-only">Save <span class="hint" id="save-hint"></span></button>
+    </div>
+</div>
+<div id="toast"></div>
+<script>
+(function() {{
+    var body = document.body;
+    var ta = document.getElementById('editor');
+    var kebab = document.getElementById('kebab');
+    var btn = document.getElementById('kebab-btn');
+    var menu = document.getElementById('kebab-menu');
+    var toast = document.getElementById('toast');
+    var isMac = navigator.platform.indexOf('Mac') === 0;
+    document.getElementById('save-hint').textContent = isMac ? '⌘S' : 'Ctrl+S';
+    var dirty = false, timer = null, toastTimer = null;
+    var baseTitle = document.title;
+
+    function post(o) {{ if (window.ipc) window.ipc.postMessage(JSON.stringify(o)); }}
+    function editing() {{ return body.classList.contains('editing'); }}
+    function labels() {{
+        menu.querySelector('[data-act=mode]').textContent = editing() ? 'Viewer mode' : 'Editor mode';
+        menu.querySelector('[data-act=toc]').textContent = body.classList.contains('no-toc') ? 'Show table of contents' : 'Hide table of contents';
+        document.title = baseTitle + (dirty ? ' •' : '');
+    }}
+    function showToast(msg) {{
+        toast.textContent = msg; toast.style.display = 'block';
+        clearTimeout(toastTimer); toastTimer = setTimeout(function() {{ toast.style.display = 'none'; }}, 1800);
+    }}
+    function save() {{ if (!editing()) return; post({{cmd: 'save', text: ta.value}}); }}
+
+    btn.addEventListener('click', function(e) {{ e.stopPropagation(); kebab.classList.toggle('open'); }});
+    document.addEventListener('click', function() {{ kebab.classList.remove('open'); }});
+    menu.addEventListener('click', function(e) {{
+        var a = e.target.closest('button'); if (!a) return;
+        e.stopPropagation();
+        var act = a.getAttribute('data-act');
+        if (act === 'mode') {{ body.classList.toggle('editing'); if (editing()) ta.focus(); }}
+        else if (act === 'toc') {{ body.classList.toggle('no-toc'); }}
+        else if (act === 'save') {{ save(); }}
+        labels(); kebab.classList.remove('open');
+    }});
+    ta.addEventListener('input', function() {{
+        dirty = true; labels();
+        clearTimeout(timer);
+        timer = setTimeout(function() {{ post({{cmd: 'preview', text: ta.value}}); }}, 250);
+    }});
+    ta.addEventListener('keydown', function(e) {{
+        if (e.key === 'Tab') {{
+            e.preventDefault();
+            var s = ta.selectionStart, en = ta.selectionEnd;
+            ta.setRangeText('    ', s, en, 'end');
+            ta.dispatchEvent(new Event('input'));
+        }}
+    }});
+    document.addEventListener('keydown', function(e) {{
+        if ((e.metaKey || e.ctrlKey) && e.key === 's') {{ e.preventDefault(); save(); }}
+    }});
+
+    // Called from Rust after the file on disk changed (external edit or our own save).
+    window.__mdrSetEditor = function(text) {{
+        if (dirty) return;
+        if (ta.value !== text) ta.value = text;
+    }};
+    // Called from Rust after a save attempt. `err` is null on success.
+    window.__mdrSaved = function(err) {{
+        if (err) {{ showToast('Save failed: ' + err); return; }}
+        dirty = false; labels(); showToast('Saved');
+    }};
+    labels();
+}})();
+</script>
+<script>
+document.querySelector('.sidebar').addEventListener('click', function(e) {{
+    if (e.target.tagName === 'A') {{
+        e.preventDefault();
+        var id = e.target.getAttribute('href').substring(1);
+        var el = document.getElementById(id);
+        if (el) {{
+            el.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+            document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+            e.target.classList.add('active');
+        }}
+    }}
+}});
+</script>
+<div class="search-bar" id="searchBar" style="display:none;">
+    <input type="text" id="searchInput" placeholder="Search..." />
+    <span class="search-info" id="searchInfo">0/0</span>
+    <button onclick="searchNav(-1)">&#9650;</button>
+    <button onclick="searchNav(1)">&#9660;</button>
+    <button class="close-btn" onclick="closeSearch()">Esc</button>
+</div>
+<script>
+(function() {{
+    var matches = [];
+    var currentIdx = -1;
+
+    function clearHighlights() {{
+        document.querySelectorAll('mark.search-highlight').forEach(function(m) {{
+            var parent = m.parentNode;
+            parent.replaceChild(document.createTextNode(m.textContent), m);
+            parent.normalize();
+        }});
+        matches = [];
+        currentIdx = -1;
+    }}
+
+    function highlightMatches(query) {{
+        clearHighlights();
+        if (!query) {{ updateInfo(); return; }}
+        var walker = document.createTreeWalker(
+            document.querySelector('.content'),
+            NodeFilter.SHOW_TEXT, null, false
+        );
+        var textNodes = [];
+        while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+        var queryLower = query.toLowerCase();
+        for (var i = textNodes.length - 1; i >= 0; i--) {{
+            var node = textNodes[i];
+            var text = node.textContent;
+            var textLower = text.toLowerCase();
+            var idx = textLower.lastIndexOf(queryLower);
+            while (idx >= 0) {{
+                var range = document.createRange();
+                range.setStart(node, idx);
+                range.setEnd(node, idx + query.length);
+                var mark = document.createElement('mark');
+                mark.className = 'search-highlight';
+                range.surroundContents(mark);
+                node = mark.previousSibling || node.parentNode.firstChild;
+                idx = idx > 0 ? node.textContent.toLowerCase().lastIndexOf(queryLower, idx - 1) : -1;
+            }}
+        }}
+        matches = document.querySelectorAll('mark.search-highlight');
+        if (matches.length > 0) {{ currentIdx = 0; goToCurrent(); }}
+        updateInfo();
+    }}
+
+    function goToCurrent() {{
+        document.querySelectorAll('mark.search-highlight.current').forEach(function(m) {{ m.classList.remove('current'); }});
+        if (matches.length > 0 && currentIdx >= 0) {{
+            matches[currentIdx].classList.add('current');
+            matches[currentIdx].scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+        }}
+    }}
+
+    function updateInfo() {{
+        var info = document.getElementById('searchInfo');
+        if (matches.length === 0) {{ info.textContent = '0/0'; }}
+        else {{ info.textContent = (currentIdx + 1) + '/' + matches.length; }}
+    }}
+
+    window.searchNav = function(dir) {{
+        if (matches.length === 0) return;
+        currentIdx = (currentIdx + dir + matches.length) % matches.length;
+        goToCurrent();
+        updateInfo();
+    }};
+
+    window.closeSearch = function() {{
+        document.getElementById('searchBar').style.display = 'none';
+        clearHighlights();
+        updateInfo();
+    }};
+
+    document.addEventListener('keydown', function(e) {{
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {{
+            e.preventDefault();
+            var bar = document.getElementById('searchBar');
+            bar.style.display = 'flex';
+            var input = document.getElementById('searchInput');
+            input.focus();
+            input.select();
+        }}
+        if (e.key === 'Escape') {{
+            window.closeSearch();
+        }}
+        if (e.key === 'Enter' && document.activeElement === document.getElementById('searchInput')) {{
+            e.preventDefault();
+            if (e.shiftKey) {{ window.searchNav(-1); }}
+            else {{ window.searchNav(1); }}
+        }}
+    }});
+
+    document.getElementById('searchInput').addEventListener('input', function() {{
+        highlightMatches(this.value);
+    }});
+}})();
+</script>
+{highlight_script}
+{mermaid_script}
+<div id="expand-overlay"><div id="expand-content"></div></div>
+<script>
+(function() {{
+    var ICON = '<svg width="14" height="14" viewBox="0 0 14 14" fill="white"><path d="M0 0v4h1.5V1.5H4V0H0zm10 0v1.5h2.5V4H14V0h-4zm0 14h4v-4h-1.5v2.5H10V14zM0 10v4h4v-1.5H1.5V10H0z"/></svg>';
+    var overlay = document.getElementById('expand-overlay');
+    var content = document.getElementById('expand-content');
+
+    function open(el) {{
+        content.innerHTML = '';
+        content.appendChild(el.cloneNode(true));
+        overlay.style.display = 'flex';
+    }}
+
+    function wrap(el) {{
+        if (el.closest('.expandable') || el.closest('#expand-overlay')) return;
+        var w = document.createElement('div');
+        w.className = 'expandable';
+        el.parentNode.insertBefore(w, el);
+        w.appendChild(el);
+        var btn = document.createElement('button');
+        btn.className = 'expand-btn';
+        btn.title = 'View fullscreen';
+        btn.innerHTML = ICON;
+        w.appendChild(btn);
+    }}
+
+    // Delegated listeners — avoids per-element addEventListener issues in WebKitGTK
+    document.addEventListener('click', function(e) {{
+        var btn = e.target.closest('.expand-btn');
+        if (!btn) return;
+        e.stopPropagation(); e.preventDefault();
+        var el = btn.closest('.expandable').querySelector('img, svg');
+        if (el) open(el);
+    }});
+    document.addEventListener('dblclick', function(e) {{
+        var el = e.target.closest('.content img, .content svg');
+        if (el) {{ e.stopPropagation(); e.preventDefault(); open(el); }}
+    }});
+
+    overlay.addEventListener('click', function() {{ overlay.style.display = 'none'; }});
+    content.addEventListener('click', function(e) {{ e.stopPropagation(); }});
+    document.addEventListener('keydown', function(e) {{
+        if (e.key === 'Escape') overlay.style.display = 'none';
+    }});
+
+    new MutationObserver(function(ms) {{
+        ms.forEach(function(m) {{
+            m.addedNodes.forEach(function(n) {{
+                if (!n.tagName) return;
+                var t = n.tagName.toUpperCase();
+                if (t === 'SVG' || t === 'IMG') wrap(n);
+                else if (n.querySelectorAll) n.querySelectorAll('svg,img').forEach(wrap);
+            }});
+        }});
+    }}).observe(document.querySelector('.content'), {{ childList: true, subtree: true }});
+
+    document.readyState === 'loading'
+        ? document.addEventListener('DOMContentLoaded', function() {{ document.querySelectorAll('.content img, .content svg').forEach(wrap); }})
+        : document.querySelectorAll('.content img, .content svg').forEach(wrap);
+}})();
+</script>
+</body>
+</html>"#,
+        css = GITHUB_CSS,
+        toc = toc_html,
+        body = body,
+        body_class = body_class.trim_end(),
+        editor_text = editor_text,
+        lang_attr = lang_attr,
+        highlight_script = highlight_script,
+        mermaid_script = mermaid_script
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_html_does_not_block_clipboard_in_csp() {
+        let toc = vec![];
+        let html = build_html("<p>Hello</p>", &toc, "", "", &ViewOptions::default());
+        // CSP must NOT block clipboard API — it should either omit clipboard restrictions
+        // or not have a restrictive default-src that prevents copy operations
+        // The key is that the webview's native copy (Cmd+C/Ctrl+C) works through
+        // the OS menu, not through CSP-gated JavaScript APIs
+        assert!(
+            html.contains("Content-Security-Policy"),
+            "CSP should be present"
+        );
+        // Verify CSP doesn't block scripts (needed for search, mermaid, etc.)
+        assert!(
+            html.contains("script-src 'unsafe-inline'"),
+            "Scripts must be allowed for search to work"
+        );
+    }
+
+    #[test]
+    fn build_html_sets_lang_attribute_when_given() {
+        let html = build_html("<p>x</p>", &[], "", "zh-Hant", &ViewOptions::default());
+        assert!(html.contains("<html lang=\"zh-Hant\">"));
+        let html = build_html("<p>x</p>", &[], "", "", &ViewOptions::default());
+        assert!(html.contains("<html>"));
+    }
+
+    #[test]
+    fn render_update_js_updates_lang_from_content() {
+        let js = render_update_js("これは日本語です。", std::path::Path::new("."), None);
+        assert!(js.contains("setAttribute('lang', \"ja\")"));
+        let js = render_update_js("plain english", std::path::Path::new("."), Some("ko"));
+        assert!(js.contains("setAttribute('lang', \"ko\")"));
+    }
+
+    // --- highlight.js / KDL highlighting tests ---
+
+    #[test]
+    fn highlight_js_injected_when_code_blocks_present() {
+        let toc = vec![];
+        let body = r#"<pre><code class="language-rust">fn main() {}</code></pre>"#;
+        let html = build_html(body, &toc, "", "", &ViewOptions::default());
+        assert!(
+            html.contains("hljs.highlightAll()"),
+            "hljs.highlightAll() must be present when code blocks exist"
+        );
+        assert!(
+            html.contains("hljsDefineKdl"),
+            "KDL language definition must be injected"
+        );
+        assert!(
+            html.contains("hljs.registerLanguage('kdl'"),
+            "KDL must be registered with highlight.js"
+        );
+    }
+
+    #[test]
+    fn highlight_js_not_injected_for_prose_only() {
+        let toc = vec![];
+        let html = build_html("<p>No code here</p>", &toc, "", "", &ViewOptions::default());
+        assert!(
+            !html.contains("hljs.highlightAll()"),
+            "hljs should not be injected for prose-only content"
+        );
+        assert!(
+            !html.contains("hljsDefineKdl"),
+            "KDL grammar should not be injected for prose-only content"
+        );
+    }
+
+    #[test]
+    fn kdl_grammar_registers_correct_language_name() {
+        // The grammar file must declare hljsDefineKdl and reference 'kdl' as the language name
+        assert!(
+            HIGHLIGHT_KDL.contains("hljsDefineKdl"),
+            "Grammar must export hljsDefineKdl function"
+        );
+        assert!(
+            HIGHLIGHT_KDL.contains("name: 'KDL'"),
+            "Grammar must declare name: 'KDL'"
+        );
+        assert!(
+            HIGHLIGHT_KDL.contains("aliases: ['kdl']"),
+            "Grammar must include 'kdl' alias"
+        );
+    }
+
+    #[test]
+    fn kdl_grammar_covers_key_token_types() {
+        // Verify the grammar handles all major KDL v2 token types
+        assert!(
+            HIGHLIGHT_KDL.contains("title.function"),
+            "Node names need title.function scope"
+        );
+        assert!(
+            HIGHLIGHT_KDL.contains("'attr'"),
+            "Property keys need attr scope"
+        );
+        assert!(
+            HIGHLIGHT_KDL.contains("'string'"),
+            "Strings need string scope"
+        );
+        assert!(
+            HIGHLIGHT_KDL.contains("'number'"),
+            "Numbers need number scope"
+        );
+        assert!(
+            HIGHLIGHT_KDL.contains("'literal'"),
+            "Keyword literals need literal scope"
+        );
+        assert!(
+            HIGHLIGHT_KDL.contains("'type'"),
+            "Type annotations need type scope"
+        );
+        assert!(
+            HIGHLIGHT_KDL.contains("'comment'"),
+            "Comments need comment scope"
+        );
+    }
+
+    #[test]
+    fn kdl_grammar_handles_all_literals() {
+        // #true #false #null #inf #-inf #nan must all be covered
+        assert!(
+            HIGHLIGHT_KDL.contains("#(?:true|false|null|nan|-inf|inf)")
+                || (HIGHLIGHT_KDL.contains("true")
+                    && HIGHLIGHT_KDL.contains("false")
+                    && HIGHLIGHT_KDL.contains("null")
+                    && HIGHLIGHT_KDL.contains("inf")),
+            "Grammar must cover all KDL v2 keyword literals"
+        );
+    }
+
+    #[test]
+    fn kdl_grammar_handles_raw_strings() {
+        // Raw strings #"..."# syntax must be present
+        assert!(
+            HIGHLIGHT_KDL.contains("#+\""),
+            "Grammar must handle raw string start #\""
+        );
+        assert!(
+            HIGHLIGHT_KDL.contains("\"#+"),
+            "Grammar must handle raw string end \"#"
+        );
+    }
+
+    #[test]
+    fn kdl_grammar_handles_slashdash() {
+        assert!(
+            HIGHLIGHT_KDL.contains("/-"),
+            "Grammar must handle slashdash comments"
+        );
+    }
+
+    #[test]
+    fn highlight_css_includes_both_themes() {
+        assert!(
+            HIGHLIGHT_CSS.contains("prefers-color-scheme:light"),
+            "Must include light theme"
+        );
+        assert!(
+            HIGHLIGHT_CSS.contains("prefers-color-scheme:dark"),
+            "Must include dark theme"
+        );
+        // Both themes must define .hljs background
+        assert!(
+            HIGHLIGHT_CSS.contains("#fff"),
+            "Light theme must set white background"
+        );
+        assert!(
+            HIGHLIGHT_CSS.contains("#0d1117"),
+            "Dark theme must set dark background"
+        );
+    }
+
+    #[test]
+    fn highlight_css_includes_kdl_overrides() {
+        // Node names: bold red
+        assert!(
+            HIGHLIGHT_CSS.contains(".language-kdl .hljs-title"),
+            "KDL node name override must be present"
+        );
+        assert!(
+            HIGHLIGHT_CSS.contains("font-weight:bold"),
+            "KDL node names must be bold"
+        );
+        // Property keys: italic
+        assert!(
+            HIGHLIGHT_CSS.contains(".language-kdl .hljs-attr"),
+            "KDL property key override must be present"
+        );
+        assert!(
+            HIGHLIGHT_CSS.contains("font-style:italic"),
+            "KDL property keys must be italic"
+        );
+        // Attribute values: light blue
+        assert!(
+            HIGHLIGHT_CSS.contains(".language-kdl .hljs-string"),
+            "KDL value override must be present"
+        );
+        // Dark mode overrides present
+        assert!(
+            HIGHLIGHT_CSS.contains(".language-kdl .hljs-title,.language-kdl .function_"),
+            "Dark mode KDL node name override must be present"
+        );
+    }
+
+    #[test]
+    fn resolve_local_images_svg_rasterized_to_png() {
+        let dir = std::env::temp_dir().join("mdr_test_webview_svg_raster");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let svg_content = r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="red"/></svg>"#;
+        std::fs::write(dir.join("test.svg"), svg_content).unwrap();
+
+        let html = r#"<img src="test.svg" alt="test">"#;
+        let result = resolve_local_images(html, &dir);
+
+        // SVG should be rasterized to PNG data URI (not inlined as raw SVG)
+        assert!(
+            result.contains("data:image/png;base64,"),
+            "SVG should be rasterized to PNG, got: {}",
+            result
+        );
+        assert!(
+            !result.contains("<svg"),
+            "Raw SVG should NOT be inlined (security), got: {}",
+            result
+        );
+        assert!(
+            result.contains("<img"),
+            "Should remain an <img> tag with PNG data URI"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_local_images_svg_with_links_is_safe() {
+        // SVGs with <a> tags must NOT be inlined (they cause navigation)
+        let dir = std::env::temp_dir().join("mdr_test_webview_svg_links");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let svg_with_links = r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+<a href="https://example.com"><rect width="100" height="100" fill="blue"/></a></svg>"#;
+        std::fs::write(dir.join("logo.svg"), svg_with_links).unwrap();
+
+        let html = r#"<img src="logo.svg" alt="logo">"#;
+        let result = resolve_local_images(html, &dir);
+
+        // Must NOT contain raw SVG with links
+        assert!(
+            !result.contains("href=\"https://example.com\""),
+            "SVG links must not leak into page, got: {}",
+            result
+        );
+        assert!(
+            result.contains("data:image/png;base64,"),
+            "Should be rasterized to safe PNG, got: {}",
+            result
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_local_images_non_svg_uses_data_uri() {
+        let dir = std::env::temp_dir().join("mdr_test_webview_png_datauri");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let png_path = dir.join("test.png");
+        let mut img = image::RgbaImage::new(1, 1);
+        img.put_pixel(0, 0, image::Rgba([255, 0, 0, 255]));
+        img.save(&png_path).unwrap();
+
+        let html = r#"<img src="test.png" alt="pixel">"#;
+        let result = resolve_local_images(html, &dir);
+
+        assert!(
+            result.contains("data:image/png;base64,"),
+            "PNG should use data URI, got: {}",
+            result
+        );
+        assert!(
+            result.contains("<img"),
+            "img tag should be preserved for PNG, got: {}",
+            result
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_local_images_preserves_remote_urls() {
+        let dir = std::env::temp_dir();
+        let html = r#"<img src="https://example.com/image.svg" alt="remote">"#;
+        let result = resolve_local_images(html, &dir);
+        assert_eq!(result, html, "Remote URLs should be preserved unchanged");
+    }
+
+    #[test]
+    fn resolve_local_images_subdirectory_paths() {
+        // Simulate the real-world scenario: images in subdirectories
+        let dir = std::env::temp_dir().join("mdr_test_webview_subdir");
+        let img_dir = dir.join("assets").join("screenshots");
+        std::fs::create_dir_all(&img_dir).unwrap();
+
+        // Create a real PNG file in subdirectory
+        let png_path = img_dir.join("chart.png");
+        let mut img = image::RgbaImage::new(2, 2);
+        img.put_pixel(0, 0, image::Rgba([255, 0, 0, 255]));
+        img.save(&png_path).unwrap();
+
+        // This is what comrak generates from ![alt](assets/screenshots/chart.png)
+        let html = r#"<img src="assets/screenshots/chart.png" alt="Revenue chart" />"#;
+        let result = resolve_local_images(html, &dir);
+
+        assert!(
+            result.contains("data:image/png;base64,"),
+            "PNG in subdirectory should be resolved to data URI, got: {}",
+            &result[..result.len().min(200)]
+        );
+        assert!(result.contains("<img"), "Should still be an img tag");
+        assert!(
+            result.contains("alt=\"Revenue chart\""),
+            "Alt text should be preserved"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_local_images_empty_base_dir() {
+        // When file_path.parent() is empty (bare filename), base_dir is ""
+        // This should still work for files that exist relative to CWD
+        let dir = std::env::temp_dir().join("mdr_test_webview_empty_base");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let png_path = dir.join("test.png");
+        let mut img = image::RgbaImage::new(1, 1);
+        img.put_pixel(0, 0, image::Rgba([0, 255, 0, 255]));
+        img.save(&png_path).unwrap();
+
+        // With proper base_dir, it should work
+        let html = r#"<img src="test.png" alt="test" />"#;
+        let result = resolve_local_images(html, &dir);
+        assert!(
+            result.contains("data:image/png;base64,"),
+            "Should resolve with proper base_dir, got: {}",
+            &result[..result.len().min(200)]
+        );
+
+        // With empty base_dir, the file won't be found (unless CWD happens to match)
+        let empty = std::path::PathBuf::from("");
+        let result2 = resolve_local_images(html, &empty);
+        // This will likely NOT find the file since CWD != dir
+        // The tag should be returned unchanged
+        assert!(
+            result2.contains("src=\"test.png\"") || result2.contains("data:image/png;base64,"),
+            "With empty base_dir, should either find file or return original, got: {}",
+            &result2[..result2.len().min(200)]
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_local_images_comrak_output_format() {
+        // Test with the exact HTML format comrak produces from markdown images
+        let dir = std::env::temp_dir().join("mdr_test_webview_comrak_format");
+        let screenshots_dir = dir.join("assets").join("screenshots");
+        std::fs::create_dir_all(&screenshots_dir).unwrap();
+
+        let png_path = screenshots_dir.join("revenue.png");
+        let mut img = image::RgbaImage::new(1, 1);
+        img.put_pixel(0, 0, image::Rgba([0, 0, 255, 255]));
+        img.save(&png_path).unwrap();
+
+        // Comrak generates self-closing tags with alt attribute
+        let html = r#"<p><img src="assets/screenshots/revenue.png" alt="Monthly Revenue Growth — Jan 2023 to Feb 2026" /></p>"#;
+        let result = resolve_local_images(html, &dir);
+
+        assert!(
+            result.contains("data:image/png;base64,"),
+            "Comrak-style img tag should be resolved, got: {}",
+            &result[..result.len().min(300)]
+        );
+        assert!(
+            result.contains("alt=\"Monthly Revenue Growth"),
+            "Alt text with special chars should be preserved"
+        );
+        assert!(
+            result.contains("<p>") && result.contains("</p>"),
+            "Surrounding <p> tags should be preserved"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_local_images_multiple_images_in_html() {
+        // Test multiple images in a single HTML string
+        let dir = std::env::temp_dir().join("mdr_test_webview_multi_img");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        for name in &["a.png", "b.png"] {
+            let path = dir.join(name);
+            let mut img = image::RgbaImage::new(1, 1);
+            img.put_pixel(0, 0, image::Rgba([128, 128, 128, 255]));
+            img.save(&path).unwrap();
+        }
+
+        let html = r#"<p><img src="a.png" alt="A" /></p><p><img src="b.png" alt="B" /></p>"#;
+        let result = resolve_local_images(html, &dir);
+
+        // Both images should be resolved
+        let count = result.matches("data:image/png;base64,").count();
+        assert_eq!(
+            count,
+            2,
+            "Both images should be resolved to data URIs, got {} matches in: {}",
+            count,
+            &result[..result.len().min(300)]
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rasterize_svg_to_png_data_uri_basic() {
+        let dir = std::env::temp_dir().join("mdr_test_rasterize_svg");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let svg = r#"<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><circle cx="25" cy="25" r="20" fill="blue"/></svg>"#;
+        let path = dir.join("test.svg");
+        std::fs::write(&path, svg).unwrap();
+
+        let result = rasterize_svg_to_png_data_uri(&path).unwrap();
+        assert!(result.starts_with("data:image/png;base64,"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_local_images_blocks_path_traversal() {
+        let dir = std::env::temp_dir().join("mdr_test_webview_traversal");
+        let subdir = dir.join("docs");
+        std::fs::create_dir_all(&subdir).unwrap();
+
+        // Create a file OUTSIDE the subdir (in parent)
+        let mut img = image::RgbaImage::new(1, 1);
+        img.put_pixel(0, 0, image::Rgba([255, 0, 0, 255]));
+        img.save(dir.join("secret.png")).unwrap();
+
+        // Try to access it via path traversal from subdir
+        let html = r#"<img src="../secret.png" alt="secret">"#;
+        let result = resolve_local_images(html, &subdir);
+
+        // Should NOT resolve to data URI — the path escapes subdir
+        assert!(
+            !result.contains("data:image/png;base64,"),
+            "Path traversal should be blocked, got: {}",
+            &result[..result.len().min(200)]
+        );
+        assert!(
+            result.contains("src=\"../secret.png\""),
+            "Original src should be preserved when blocked"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

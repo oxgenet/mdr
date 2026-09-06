@@ -163,22 +163,30 @@ override per block with raw HTML: `<div lang="ko">…</div>`.
 mdr --lang zh-Hant notes.md
 ```
 
-### iOS (experimental, simulator)
+### iOS app (document-based, like a PDF viewer for `.md`)
 
-The webview backend also builds for iOS: native menus (`muda`) are compiled out
-and the app opens `document.md` bundled next to the executable (or the path in
-`MDR_FILE`). `scripts/ios-sim.sh` builds for `aarch64-apple-ios-sim`, assembles
-`mdr.app` with `ios/Info.plist`, installs it on a booted iPhone simulator,
-launches it, captures a screenshot, and asserts that the document rendered.
+`ios/MdrApp` is a small Swift shell around the Rust core (`libmdr.a`, C ABI in
+`ios/mdr_core.h`). It behaves the way PDF apps do for PDFs:
+
+- registers the Markdown document type, so `.md` attachments in Mail / Files /
+  share sheets open in mdr ("Open in mdr", `LSHandlerRank = Owner`)
+- starts in the system document browser (Recents / Shared / Browse, iCloud
+  Drive and other Files providers)
+- opens files **in place** through `UIDocument` (`LSSupportsOpeningDocumentsInPlace`):
+  edits are written back to the original file with autosave
+- viewer with Done / table of contents / search / edit (pen) / share; the
+  navigation bar hides on scroll
+- edit mode: native text view (IME, undo, dictation) with a Markdown syntax
+  bar above the keyboard and live preview below
+- share as `.md` or as PDF
 
 ```bash
+brew install xcodegen
 rustup target add aarch64-apple-ios-sim
-scripts/ios-sim.sh tests/samples/lang/ja.md            # -> target/ios-sim/screenshot.png
-MDR_EXPECT_LANG=zh-Hant scripts/ios-sim.sh tests/samples/lang/zh-hant.md
+ios/build-app.sh tests/samples/lang/ja.md     # build core + app, install on a simulator, open, screenshot, assert
 ```
 
-There is no document picker yet, so on iOS this is a rendering test bed rather
-than a finished app.
+`scripts/ios-sim.sh` is the older, chrome-less test bed (tao window + bundled document).
 
 ### TUI keybindings
 

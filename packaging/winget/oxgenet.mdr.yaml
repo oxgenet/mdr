@@ -1,0 +1,61 @@
+# WinGet manifests for the oxgenet fork. Submitted to microsoft/winget-pkgs under
+#   manifests/o/oxgenet/mdr/<version>/
+# as three files (version / installer / defaultLocale). They are concatenated here
+# for reference; the release workflow (winget-releaser) generates the real ones.
+#
+# --- oxgenet.mdr.yaml (version manifest) ---
+PackageIdentifier: oxgenet.mdr
+PackageVersion: 0.4.0
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.6.0
+---
+# --- oxgenet.mdr.installer.yaml ---
+PackageIdentifier: oxgenet.mdr
+PackageVersion: 0.4.0
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+  - RelativeFilePath: mdr.exe
+    PortableCommandAlias: mdr
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/oxgenet/mdr/releases/download/v0.4.0/mdr-x86_64-pc-windows-msvc.zip
+    InstallerSha256: REPLACED_BY_CI_X64
+  - Architecture: arm64
+    InstallerUrl: https://github.com/oxgenet/mdr/releases/download/v0.4.0/mdr-aarch64-pc-windows-msvc.zip
+    InstallerSha256: REPLACED_BY_CI_ARM64
+ManifestType: installer
+ManifestVersion: 1.6.0
+---
+# --- oxgenet.mdr.locale.en-US.yaml ---
+PackageIdentifier: oxgenet.mdr
+PackageVersion: 0.4.0
+PackageLocale: en-US
+Publisher: tkykszk
+PublisherUrl: https://github.com/oxgenet
+PublisherSupportUrl: https://github.com/oxgenet/mdr/issues
+Author: tkykszk@gmail.com
+PackageName: mdr (oxgenet fork)
+PackageUrl: https://github.com/oxgenet/mdr
+License: MIT
+LicenseUrl: https://github.com/oxgenet/mdr/blob/main/LICENSE
+Copyright: Copyright (c) 2026 Clever Cloud; Copyright (c) 2026 tkykszk@gmail.com
+CopyrightUrl: https://github.com/oxgenet/mdr/blob/main/NOTICE.md
+ShortDescription: Markdown viewer/editor with Mermaid and CJK-aware rendering (fork of Clever Cloud's mdr)
+Description: |-
+  A lightweight Markdown viewer and editor built in Rust. Opens in a
+  chrome-less viewer mode, switches to an editor with live preview, renders
+  Mermaid diagrams, and selects correct glyphs and fonts for Japanese,
+  Simplified/Traditional Chinese and Korean. This is the oxgenet fork of
+  Clever Cloud's mdr (https://github.com/CleverCloud/mdr), not affiliated with
+  Clever Cloud. The original is published separately as CleverCloud.mdr.
+Moniker: mdr-ox
+Tags:
+  - markdown
+  - viewer
+  - editor
+  - mermaid
+  - cjk
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

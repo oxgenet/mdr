@@ -1,0 +1,38 @@
+{
+    "version": "0.4.0",
+    "description": "Markdown viewer/editor with Mermaid and CJK-aware rendering (oxgenet fork of Clever Cloud's mdr)",
+    "homepage": "https://github.com/oxgenet/mdr",
+    "license": {
+        "identifier": "MIT",
+        "url": "https://github.com/oxgenet/mdr/blob/main/LICENSE"
+    },
+    "notes": [
+        "This is the oxgenet fork of mdr, not the original Clever Cloud release.",
+        "Original project: https://github.com/CleverCloud/mdr (MIT).",
+        "Fork copyright (c) 2026 tkykszk@gmail.com. See NOTICE.md in the repository."
+    ],
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/oxgenet/mdr/releases/download/v0.4.0/mdr-x86_64-pc-windows-msvc.zip",
+            "hash": "REPLACED_BY_CI_X64"
+        },
+        "arm64": {
+            "url": "https://github.com/oxgenet/mdr/releases/download/v0.4.0/mdr-aarch64-pc-windows-msvc.zip",
+            "hash": "REPLACED_BY_CI_ARM64"
+        }
+    },
+    "bin": "mdr.exe",
+    "checkver": {
+        "github": "https://github.com/oxgenet/mdr"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/oxgenet/mdr/releases/download/v$version/mdr-x86_64-pc-windows-msvc.zip"
+            },
+            "arm64": {
+                "url": "https://github.com/oxgenet/mdr/releases/download/v$version/mdr-aarch64-pc-windows-msvc.zip"
+            }
+        }
+    }
+}

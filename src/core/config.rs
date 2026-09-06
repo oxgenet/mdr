@@ -106,7 +106,7 @@ pub struct Config {
 }
 
 const DEFAULT_CONFIG: &str = "\
-// mdr configuration — https://github.com/CleverCloud/mdr
+// mdr configuration — https://github.com/oxgenet/mdr (fork of CleverCloud/mdr)
 
 // Rendering backend: auto, egui, webview, tui
 backend webview

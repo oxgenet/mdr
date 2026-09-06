@@ -56,14 +56,15 @@ jobs:
       - name: Package (Unix)
         if: runner.os != 'Windows'
         run: |
+          cp LICENSE NOTICE.md target/${{ matrix.target }}/release/
           cd target/${{ matrix.target }}/release
-          tar czf ../../../${{ matrix.archive }} ${{ matrix.binary }}
+          tar czf ../../../${{ matrix.archive }} ${{ matrix.binary }} LICENSE NOTICE.md
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Compress-Archive -Path "target/${{ matrix.target }}/release/${{ matrix.binary }}" -DestinationPath "${{ matrix.archive }}"
+          Compress-Archive -Path "target/${{ matrix.target }}/release/${{ matrix.binary }}", "LICENSE", "NOTICE.md" -DestinationPath "${{ matrix.archive }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -160,23 +161,24 @@ jobs:
         run: |
           cat > mdr.rb <<EOF
           class Mdr < Formula
-            desc "A lightweight Markdown viewer with Mermaid diagram support"
-            homepage "https://github.com/CleverCloud/mdr"
+            desc "Markdown viewer/editor with Mermaid and CJK-aware rendering (oxgenet fork of Clever Cloud's mdr)"
+            homepage "https://github.com/oxgenet/mdr"
             version "${VERSION}"
             license "MIT"
+            conflicts_with "mdr", because: "both install a mdr binary; this is the oxgenet fork"
 
             on_macos do
               if Hardware::CPU.arm?
-                url "https://github.com/CleverCloud/mdr/releases/download/v${VERSION}/mdr-aarch64-apple-darwin.tar.gz"
+                url "https://github.com/oxgenet/mdr/releases/download/v${VERSION}/mdr-aarch64-apple-darwin.tar.gz"
                 sha256 "${SHA_AARCH64}"
               else
-                url "https://github.com/CleverCloud/mdr/releases/download/v${VERSION}/mdr-x86_64-apple-darwin.tar.gz"
+                url "https://github.com/oxgenet/mdr/releases/download/v${VERSION}/mdr-x86_64-apple-darwin.tar.gz"
                 sha256 "${SHA_X86_64}"
               end
             end
 
             on_linux do
-              url "https://github.com/CleverCloud/mdr/releases/download/v${VERSION}/mdr-x86_64-unknown-linux-gnu.tar.gz"
+              url "https://github.com/oxgenet/mdr/releases/download/v${VERSION}/mdr-x86_64-unknown-linux-gnu.tar.gz"
               sha256 "${SHA_LINUX}"
             end
 
@@ -190,35 +192,15 @@ jobs:
           end
           EOF
 
-          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/CleverCloud/homebrew-misc.git" tap
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/oxgenet/homebrew-tap.git" tap
           mkdir -p tap/Formula
           cp mdr.rb tap/Formula/mdr.rb
           cd tap
-          git config user.email "opensource@clever-cloud.com"
-          git config user.name "Clever Cloud CI"
+          git config user.email "tkykszk@gmail.com"
+          git config user.name "oxgenet mdr CI"
           git add Formula/mdr.rb
           git diff --cached --quiet || git commit -m "Update mdr to ${VERSION}"
           git push
-
-  publish-crate:
-    name: Publish to crates.io
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libxdo-dev libgl1-mesa-dev
-
-      - name: Publish to crates.io
-        run: cargo publish || echo "Crate version already published, skipping"
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   update-winget:
     name: Update WinGet
@@ -228,7 +210,7 @@ jobs:
     steps:
       - uses: vedantmgoyal9/winget-releaser@v2
         with:
-          identifier: CleverCloud.mdr
+          identifier: oxgenet.mdr
           installers-regex: 'windows'
           token: ${{ secrets.WINGET_TOKEN }}
 
@@ -257,17 +239,17 @@ jobs:
       - name: Generate PKGBUILD
         run: |
           cat > PKGBUILD << 'PKGEOF'
-          # Maintainer: Clever Cloud <opensource@clever-cloud.com>
-          pkgname=mdr-bin
+          # Maintainer: tkykszk <tkykszk@gmail.com>
+          pkgname=mdr-ox-bin
           pkgver=${{ steps.version.outputs.version }}
           pkgrel=1
-          pkgdesc="A lightweight Markdown viewer with Mermaid diagram support, live reload, and multiple backends"
+          pkgdesc="Markdown viewer/editor with Mermaid and CJK-aware rendering (oxgenet fork of Clever Cloud mdr)"
           arch=('x86_64')
-          url="https://github.com/CleverCloud/mdr"
+          url="https://github.com/oxgenet/mdr"
           license=('MIT')
           provides=('mdr')
-          conflicts=('mdr')
-          source=("https://github.com/CleverCloud/mdr/releases/download/v${pkgver}/mdr-x86_64-unknown-linux-gnu.tar.gz")
+          conflicts=('mdr' 'mdr-bin')
+          source=("https://github.com/oxgenet/mdr/releases/download/v${pkgver}/mdr-x86_64-unknown-linux-gnu.tar.gz")
           sha256sums=('${{ steps.sha.outputs.sha256 }}')
 
           package() {
@@ -280,8 +262,8 @@ jobs:
         with:
           pkgname: mdr-bin
           pkgbuild: ./PKGBUILD
-          commit_username: "Clever Cloud CI"
-          commit_email: "opensource@clever-cloud.com"
+          commit_username: "oxgenet mdr CI"
+          commit_email: "tkykszk@gmail.com"
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: "Update to ${{ steps.version.outputs.version }}"
 
@@ -316,9 +298,9 @@ jobs:
           SHA256: ${{ steps.sha.outputs.sha256 }}
         run: |
           mkdir choco-pkg/tools
-          $nuspec = "<?xml version=`"1.0`" encoding=`"utf-8`"?>`n<package xmlns=`"http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd`">`n  <metadata>`n    <id>mdr</id>`n    <version>$env:VERSION</version>`n    <title>mdr</title>`n    <authors>Clever Cloud</authors>`n    <owners>CleverCloud</owners>`n    <summary>A lightweight Markdown viewer with live reload</summary>`n    <description>A lightweight Markdown viewer with Mermaid diagram support, live reload, and multiple rendering backends (egui, webview, TUI).</description>`n    <projectUrl>https://github.com/CleverCloud/mdr</projectUrl>`n    <tags>markdown viewer mermaid tui</tags>`n    <licenseUrl>https://github.com/CleverCloud/mdr/blob/main/LICENSE</licenseUrl>`n    <requireLicenseAcceptance>false</requireLicenseAcceptance>`n  </metadata>`n</package>"
+          $nuspec = "<?xml version=`"1.0`" encoding=`"utf-8`"?>`n<package xmlns=`"http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd`">`n  <metadata>`n    <id>mdr</id>`n    <version>$env:VERSION</version>`n    <title>mdr</title>`n    <authors>tkykszk</authors>`n    <owners>oxgenet</owners>`n    <summary>A lightweight Markdown viewer with live reload</summary>`n    <description>A lightweight Markdown viewer with Mermaid diagram support, live reload, and multiple rendering backends (egui, webview, TUI).</description>`n    <projectUrl>https://github.com/oxgenet/mdr</projectUrl>`n    <tags>markdown viewer mermaid tui</tags>`n    <licenseUrl>https://github.com/oxgenet/mdr/blob/main/LICENSE</licenseUrl>`n    <requireLicenseAcceptance>false</requireLicenseAcceptance>`n  </metadata>`n</package>"
           [System.IO.File]::WriteAllText("choco-pkg/mdr.nuspec", $nuspec)
-          $install = "`$ErrorActionPreference = 'Stop'`n`$url = `"https://github.com/CleverCloud/mdr/releases/download/v$env:VERSION/mdr-x86_64-pc-windows-msvc.zip`"`n`$checksum = `"$env:SHA256`"`nInstall-ChocolateyZipPackage -PackageName 'mdr' -Url64bit `$url -Checksum64 `$checksum -ChecksumType64 'sha256' -UnzipLocation `"`$(Split-Path -Parent `$MyInvocation.MyCommand.Definition)`""
+          $install = "`$ErrorActionPreference = 'Stop'`n`$url = `"https://github.com/oxgenet/mdr/releases/download/v$env:VERSION/mdr-x86_64-pc-windows-msvc.zip`"`n`$checksum = `"$env:SHA256`"`nInstall-ChocolateyZipPackage -PackageName 'mdr' -Url64bit `$url -Checksum64 `$checksum -ChecksumType64 'sha256' -UnzipLocation `"`$(Split-Path -Parent `$MyInvocation.MyCommand.Definition)`""
           [System.IO.File]::WriteAllText("choco-pkg/tools/chocolateyInstall.ps1", $install)
 
       - name: Pack and push
@@ -361,33 +343,33 @@ jobs:
             "version": "${VERSION}",
             "architecture": {
               "64bit": {
-                "url": "https://github.com/CleverCloud/mdr/releases/download/v${VERSION}/mdr-x86_64-pc-windows-msvc.zip",
+                "url": "https://github.com/oxgenet/mdr/releases/download/v${VERSION}/mdr-x86_64-pc-windows-msvc.zip",
                 "hash": "${SHA256}"
               }
             },
             "bin": "mdr.exe",
             "checkver": {
-              "github": "https://github.com/CleverCloud/mdr"
+              "github": "https://github.com/oxgenet/mdr"
             },
             "autoupdate": {
               "architecture": {
                 "64bit": {
-                  "url": "https://github.com/CleverCloud/mdr/releases/download/v\$version/mdr-x86_64-pc-windows-msvc.zip"
+                  "url": "https://github.com/oxgenet/mdr/releases/download/v\$version/mdr-x86_64-pc-windows-msvc.zip"
                 }
               }
             },
-            "homepage": "https://github.com/CleverCloud/mdr",
+            "homepage": "https://github.com/oxgenet/mdr",
             "license": "MIT",
-            "description": "A lightweight Markdown viewer with Mermaid diagram support, live reload, and multiple backends"
+            "description": "Markdown viewer/editor with Mermaid and CJK-aware rendering (oxgenet fork of Clever Cloud mdr)"
           }
           EOF
 
-          git clone "https://x-access-token:${SCOOP_BUCKET_TOKEN}@github.com/CleverCloud/scoop-bucket.git" bucket
+          git clone "https://x-access-token:${SCOOP_BUCKET_TOKEN}@github.com/oxgenet/scoop-bucket.git" bucket
           mkdir -p bucket/bucket
           cp mdr.json bucket/bucket/mdr.json
           cd bucket
-          git config user.email "opensource@clever-cloud.com"
-          git config user.name "Clever Cloud CI"
+          git config user.email "tkykszk@gmail.com"
+          git config user.name "oxgenet mdr CI"
           git add bucket/mdr.json
           git diff --cached --quiet || git commit -m "Update mdr to ${VERSION}"
           git push

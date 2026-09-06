@@ -1,13 +1,16 @@
 [package]
 name = "mdr"
-version = "0.3.2"
+version = "0.4.0"
 edition = "2021"
-description = "A lightweight Markdown viewer with live reload and multiple rendering backends"
+description = "Markdown viewer/editor with Mermaid and CJK-aware rendering (oxgenet fork of Clever Cloud's mdr)"
 license = "MIT"
-repository = "https://github.com/CleverCloud/mdr"
-homepage = "https://github.com/CleverCloud/mdr"
+repository = "https://github.com/oxgenet/mdr"
+homepage = "https://github.com/oxgenet/mdr"
 readme = "README.md"
-authors = ["Clever Cloud <opensource@clever-cloud.com>"]
+# Original work: Clever Cloud <opensource@clever-cloud.com> (https://github.com/CleverCloud/mdr)
+authors = ["tkykszk <tkykszk@gmail.com>", "Clever Cloud <opensource@clever-cloud.com>"]
+# This fork is not published to crates.io; the `mdr` crate there is upstream's.
+publish = false
 categories = ["command-line-utilities", "text-processing"]
 keywords = ["markdown", "viewer", "mermaid", "tui", "webview"]
 
@@ -91,11 +94,29 @@ tempfile = "3"
 libc = "0.2"
 
 [package.metadata.deb]
+name = "mdr"
+maintainer = "tkykszk <tkykszk@gmail.com>"
+copyright = "2026 Clever Cloud <opensource@clever-cloud.com>, 2026 tkykszk@gmail.com"
+license-file = ["packaging/debian/copyright", "0"]
 section = "text"
-assets = [["target/release/mdr", "/usr/bin/mdr", "755"]]
-extended-description = "A lightweight Markdown viewer with Mermaid diagram support, live reload, and multiple rendering backends (egui, webview, TUI)."
+assets = [
+  ["target/release/mdr", "/usr/bin/mdr", "755"],
+  ["NOTICE.md", "/usr/share/doc/mdr/NOTICE.md", "644"],
+  ["README.md", "/usr/share/doc/mdr/README.md", "644"],
+]
+extended-description = """\
+Markdown viewer and editor with Mermaid diagrams, live reload, and CJK-aware
+rendering (Japanese, Simplified/Traditional Chinese, Korean).
+.
+This is the oxgenet fork of mdr by Clever Cloud (https://github.com/CleverCloud/mdr),
+not affiliated with Clever Cloud. See /usr/share/doc/mdr/NOTICE.md."""
 
 [package.metadata.generate-rpm]
+license = "MIT"
+vendor = "tkykszk <tkykszk@gmail.com>"
+url = "https://github.com/oxgenet/mdr"
 assets = [
   { source = "target/release/mdr", dest = "/usr/bin/mdr", mode = "0755" },
+  { source = "LICENSE", dest = "/usr/share/licenses/mdr/LICENSE", mode = "0644", doc = true },
+  { source = "NOTICE.md", dest = "/usr/share/doc/mdr/NOTICE.md", mode = "0644", doc = true },
 ]

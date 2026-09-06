@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - Unreleased (oxgenet fork)
+
+First release of the oxgenet fork of mdr (https://github.com/oxgenet/mdr),
+forked from Clever Cloud's v0.3.2. Copyright (c) 2026 tkykszk@gmail.com for
+the modifications; original work (c) 2026 Clever Cloud, MIT.
+
+### Added
+- Webview **viewer mode** by default (no sidebar/toolbar) with a `⋮` menu to
+  switch to **editor mode** (source + live preview, Cmd/Ctrl+S save) and toggle
+  the table of contents; `--edit`, `--toc` flags and `mode`/`toc` config keys
+- **CJK-aware rendering**: language resolution (front matter `lang:`, `--lang`,
+  config `lang`, content detection, OS locale) sets `<html lang>`; `:lang()`
+  font stacks for ja / zh-Hans / zh-Hant / ko for body, code, editor, Mermaid
+- Leading YAML front matter is stripped from the rendered document
+- CI: dependency refresh builds (macOS arm64/x64, Windows x64/arm64), Windows
+  rendering screenshots, experimental iOS/Android compile checks
+- `LICENSE`, `NOTICE.md`, packaging templates under `packaging/`
+
+### Changed
+- Default Cargo features are now `webview-backend` only (egui/tui opt-in)
+- Package identity moved to the oxgenet namespace (Homebrew `oxgenet/tap/mdr`,
+  Scoop bucket `oxgenet`, WinGet `oxgenet.mdr`); not published to crates.io
+
 ## [0.3.2] - 2026-06-22
 
 ### Added

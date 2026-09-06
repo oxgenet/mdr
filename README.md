@@ -2,11 +2,16 @@
   <img src="assets/logo.svg" alt="mdr logo" width="180"/>
 </p>
 
-<h1 align="center">mdr — Markdown Reader</h1>
+<h1 align="center">mdr — Markdown Reader (oxgenet fork)</h1>
 
 <p align="center">
-  A lightweight, fast Markdown viewer with Mermaid diagram support and live reload. Built in Rust.
+  A lightweight, fast Markdown viewer and editor with Mermaid diagram support, live reload, and CJK-aware rendering. Built in Rust.
 </p>
+
+> **This is a fork.** The original mdr is by [Clever Cloud](https://github.com/CleverCloud/mdr) (MIT).
+> This fork (https://github.com/oxgenet/mdr) is maintained by tkykszk@gmail.com and is not affiliated
+> with Clever Cloud. Package names are namespaced (`oxgenet/tap/mdr`, `oxgenet.mdr`, …) so they do not
+> collide with the original. Provenance and attribution: [NOTICE.md](NOTICE.md). License: [LICENSE](LICENSE).
 
 ## Why mdr?
 
@@ -36,7 +41,7 @@ mdr offers multiple rendering backends, selectable at runtime:
 ### From source
 
 ```bash
-git clone https://github.com/CleverCloud/mdr.git
+git clone https://github.com/oxgenet/mdr.git
 cd mdr
 cargo install --path .
 ```
@@ -54,7 +59,7 @@ cargo install --path . --no-default-features --features webview-backend
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew install CleverCloud/misc/mdr
+brew install oxgenet/tap/mdr   # oxgenet fork (conflicts with CleverCloud/misc/mdr)
 ```
 
 ### Snap (Linux)
@@ -68,8 +73,8 @@ sudo snap install --edge mdr-markdown-renderer
 ### Scoop (Windows)
 
 ```powershell
-scoop bucket add clevercloud https://github.com/CleverCloud/scoop-bucket
-scoop install mdr
+scoop bucket add oxgenet https://github.com/oxgenet/scoop-bucket
+scoop install oxgenet/mdr
 ```
 
 ### Chocolatey (Windows)
@@ -81,18 +86,18 @@ choco install mdr
 ### WinGet (Windows)
 
 ```powershell
-winget install CleverCloud.mdr
+winget install oxgenet.mdr
 ```
 
 ### Nix
 
 ```bash
-nix run github:CleverCloud/mdr
+nix run github:oxgenet/mdr   # flake kept from upstream, untested by the fork
 ```
 
 ### Pre-built binaries
 
-Download from the [Releases](https://github.com/CleverCloud/mdr/releases) page for macOS, Linux, and Windows.
+Download from the [Releases](https://github.com/oxgenet/mdr/releases) page for macOS, Linux, and Windows.
 
 ## Usage
 
@@ -240,7 +245,7 @@ sudo apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev libxdo-dev libgl1-mesa-d
 
 ## Releases
 
-Pre-built binaries are available on the [Releases](https://github.com/CleverCloud/mdr/releases) page for:
+Pre-built binaries are available on the [Releases](https://github.com/oxgenet/mdr/releases) page for:
 - macOS (Apple Silicon + Intel)
 - Linux (x86_64)
 - Windows (x86_64)
@@ -254,8 +259,10 @@ git push origin v0.1.0
 
 ## License
 
-MIT
+MIT. Copyright (c) 2026 Clever Cloud (original work) and Copyright (c) 2026 tkykszk@gmail.com
+(fork modifications). See [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md). Packagers: ship both files.
 
 ## Contributing
 
-Issues and PRs welcome at [github.com/CleverCloud/mdr](https://github.com/CleverCloud/mdr).
+Issues and PRs for **this fork** at [github.com/oxgenet/mdr](https://github.com/oxgenet/mdr).
+For the original project use [github.com/CleverCloud/mdr](https://github.com/CleverCloud/mdr).

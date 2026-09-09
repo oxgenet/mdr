@@ -99,6 +99,77 @@ nix run github:oxgenet/mdr   # flake kept from upstream, untested by the fork
 
 Download from the [Releases](https://github.com/oxgenet/mdr/releases) page for macOS, Linux, and Windows.
 
+### macOS app (Mdr.app)
+
+`Mdr.app` wraps the same `mdr` binary in a macOS bundle, so it can live in
+`/Applications`, sit in the Dock, and open Markdown files by double-click or
+drag & drop. Two assets are published per release:
+
+| Asset | Use |
+|---|---|
+| `Mdr-X.Y.Z-macos-universal.dmg` | drag-install into `/Applications` |
+| `Mdr-X.Y.Z-macos-universal.zip` | scripted installs, Homebrew Cask |
+
+Both are **universal** (Apple Silicon + Intel).
+
+#### Removing the quarantine flag (required)
+
+The bundle is **ad-hoc signed, not notarized** (no Apple Developer account), so
+Gatekeeper refuses it with *"Mdr" is damaged and can't be opened* until the
+quarantine attribute Safari/Chrome attached to the download is removed:
+
+```bash
+# after dragging Mdr.app into /Applications
+xattr -dr com.apple.quarantine /Applications/Mdr.app
+open /Applications/Mdr.app
+```
+
+For the `.zip`, do the same after unzipping. To inspect first:
+
+```bash
+xattr -l /Applications/Mdr.app          # com.apple.quarantine present?
+codesign --verify --verbose=2 /Applications/Mdr.app
+```
+
+There is also the GUI route — right-click Mdr.app → **Open** → *Open* in the
+dialog (macOS 14 and earlier), or **System Settings → Privacy & Security →
+Open Anyway** (macOS 15+). The `xattr` command is the one that works
+unattended, in scripts and over SSH.
+
+#### Opening documents
+
+- **Double-click** a `.md` file, or Finder → *Open With* → Mdr
+- **Drag & drop** a Markdown file onto the window — including onto the empty
+  window you get by launching the app on its own. Dropping a second file
+  replaces what is displayed
+- **Relative links** (`[notes](./sub/b.md)`) are resolved against the
+  *currently open* document's directory and opened in the same window, so a
+  tree of notes stays navigable. Images resolve the same way
+
+#### CLI options from the app bundle
+
+`Mdr.app/Contents/MacOS/mdr` is the ordinary CLI binary, so every option in
+`mdr --help` works against the installed app:
+
+```bash
+/Applications/Mdr.app/Contents/MacOS/mdr --edit --toc README.md
+
+# Same thing through LaunchServices (-n = new instance, needed to pass args)
+open -n -a Mdr --args --edit --toc "$PWD/README.md"
+```
+
+The cleanest setup is to put the bundled binary on `PATH`, so `mdr` on the
+command line and Mdr.app in the Dock are the same build:
+
+```bash
+sudo ln -sf /Applications/Mdr.app/Contents/MacOS/mdr /usr/local/bin/mdr
+mdr --version
+```
+
+`open --args` only reaches an app that is starting up, which is why `-n` is
+required above; paths passed that way must be absolute. Running the binary
+directly has no such restriction — prefer it in scripts.
+
 ## Usage
 
 ```bash
@@ -113,6 +184,9 @@ mdr --backend tui README.md
 
 # Show help
 mdr --help
+
+# Empty window — drop a Markdown file onto it (webview backend)
+mdr --new
 ```
 
 ### Webview: viewer and editor modes
@@ -132,6 +206,10 @@ mdr --edit README.md
 # Start with the table of contents visible
 mdr --toc README.md
 ```
+
+`mdr --new` opens the same window with no document loaded; drop a file onto it
+to start. This is what Mdr.app does when launched from Finder or the Dock,
+where there are no arguments and no stdin to read from.
 
 Both can also be set in `~/.config/mdr/config.kdl`:
 

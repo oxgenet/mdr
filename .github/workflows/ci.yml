@@ -59,3 +59,28 @@ jobs:
 
       - name: Run tests
         run: cargo test
+
+  macos-app:
+    name: Mdr.app bundle
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install librsvg
+        run: brew install librsvg
+
+      # Host arch only: this job guards macos/build-app.sh against bit rot,
+      # the release workflow does the universal build.
+      - name: Build Mdr.app
+        run: ./macos/build-app.sh
+
+      - name: Verify the bundle
+        run: |
+          ./target/macos/Mdr.app/Contents/MacOS/mdr --version
+          codesign --verify --verbose=2 ./target/macos/Mdr.app
+          plutil -lint ./target/macos/Mdr.app/Contents/Info.plist
+          test -f ./target/macos/Mdr.app/Contents/Resources/Mdr.icns

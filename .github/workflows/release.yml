@@ -72,6 +72,47 @@ jobs:
           name: ${{ matrix.archive }}
           path: ${{ matrix.archive }}
 
+  build-macos-app:
+    name: Build Mdr.app (universal)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      # Sharp .icns from the SVG; the script falls back to sips without it.
+      - name: Install librsvg
+        run: brew install librsvg
+
+      - name: Build Mdr.app + .dmg
+        run: ./macos/build-app.sh --universal --dmg
+
+      - name: Zip Mdr.app
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # ditto preserves the bundle's symlinks and the ad-hoc signature,
+          # which `zip` does not.
+          ditto -c -k --sequesterRsrc --keepParent \
+            target/macos/Mdr.app "Mdr-${VERSION}-macos-universal.zip"
+          mv target/macos/*.dmg .
+
+      - name: Verify the bundle runs
+        run: |
+          ./target/macos/Mdr.app/Contents/MacOS/mdr --version
+          lipo -info ./target/macos/Mdr.app/Contents/MacOS/mdr
+          codesign --verify --verbose=2 ./target/macos/Mdr.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdr-macos-app
+          path: |
+            Mdr-*-macos-universal.zip
+            Mdr-*.dmg
+
   build-deb:
     name: Build .deb package
     needs: build
@@ -396,7 +437,7 @@ jobs:
 
   release:
     name: Create Release
-    needs: [build, build-deb, build-rpm]
+    needs: [build, build-macos-app, build-deb, build-rpm]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

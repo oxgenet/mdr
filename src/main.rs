@@ -51,6 +51,24 @@ struct Cli {
     /// Do not allow plain-http images even for localhost / private addresses
     #[arg(long)]
     no_local_http: bool,
+
+    /// Open an empty window without a file; drop a Markdown file onto it
+    /// (webview backend). This is what Mdr.app does when launched from Finder.
+    #[arg(short = 'n', long)]
+    new: bool,
+}
+
+/// True when this process is `Mdr.app/Contents/MacOS/mdr`, i.e. launched from
+/// Finder/Dock rather than a shell. Such a launch has no arguments and no
+/// usable stdin, so it must open the empty drop window instead of failing.
+fn launched_from_app_bundle() -> bool {
+    if !cfg!(target_os = "macos") {
+        return false;
+    }
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|d| d.to_path_buf()))
+        .is_some_and(|dir| dir.ends_with("Contents/MacOS"))
 }
 
 fn print_backends() {
@@ -131,8 +149,24 @@ fn read_stdin_to_tmpfile() -> PathBuf {
     tmp_file
 }
 
+/// egui and tui render a single file and have no drop target: `--new` is
+/// webview-only, so tell the user rather than opening a useless window.
+#[cfg(any(feature = "egui-backend", feature = "tui-backend"))]
+fn require_file(file: Option<PathBuf>) -> PathBuf {
+    file.unwrap_or_else(|| {
+        eprintln!("Error: this backend needs a file; --new (empty window) is webview-only");
+        eprintln!("Try: mdr --new --backend webview");
+        process::exit(1);
+    })
+}
+
 fn main() {
-    let cli = Cli::parse();
+    // macOS can append a `-psn_0_12345` process-serial-number argument when the
+    // app is launched by LaunchServices (Finder, AppleScript). clap would reject
+    // it as unknown, so drop it before parsing.
+    let args = std::env::args_os()
+        .filter(|a| !a.to_string_lossy().starts_with("-psn_"));
+    let cli = Cli::parse_from(args);
 
     if cli.list_backends {
         print_backends();
@@ -183,24 +217,27 @@ fn main() {
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     let cli_file = cli.file.clone();
 
-    let file = match cli_file {
-        Some(f) if f.as_os_str() == "-" => read_stdin_to_tmpfile(),
+    // `None` = start with the empty drop window (webview only).
+    let file: Option<PathBuf> = match cli_file {
+        Some(f) if f.as_os_str() == "-" => Some(read_stdin_to_tmpfile()),
         Some(f) => {
             if !f.exists() {
                 eprintln!("Error: file '{}' not found", f.display());
                 process::exit(1);
             }
-            f
+            Some(f)
         }
+        None if cli.new || launched_from_app_bundle() => None,
         None => {
             if io::stdin().is_terminal() {
                 eprintln!("Error: missing required argument <FILE>");
                 eprintln!("Usage: mdr <FILE> [OPTIONS]");
                 eprintln!("       cat file.md | mdr [OPTIONS]");
+                eprintln!("       mdr --new            (empty window, drop a file onto it)");
                 eprintln!("Try 'mdr --help' for more information.");
                 process::exit(1);
             }
-            read_stdin_to_tmpfile()
+            Some(read_stdin_to_tmpfile())
         }
     };
 
@@ -222,7 +259,7 @@ fn main() {
 
     let result = match backend {
         #[cfg(feature = "egui-backend")]
-        "egui" => backend::egui::run(file),
+        "egui" => backend::egui::run(require_file(file)),
 
         #[cfg(not(feature = "egui-backend"))]
         "egui" => {
@@ -240,7 +277,7 @@ fn main() {
         }
 
         #[cfg(feature = "tui-backend")]
-        "tui" => backend::tui::run(file),
+        "tui" => backend::tui::run(require_file(file)),
 
         #[cfg(not(feature = "tui-backend"))]
         "tui" => {

@@ -31,6 +31,8 @@ already do this.
 
 | Asset | Target |
 |---|---|
+| `Mdr-X.Y.Z-macos-universal.dmg` | macOS app bundle, drag-install |
+| `Mdr-X.Y.Z-macos-universal.zip` | macOS app bundle, scripted install |
 | `mdr-aarch64-apple-darwin.tar.gz` | macOS Apple Silicon |
 | `mdr-x86_64-apple-darwin.tar.gz` | macOS Intel |
 | `mdr-x86_64-pc-windows-msvc.zip` | Windows x64 |
@@ -110,3 +112,40 @@ git push origin main v0.4.0
 
 The release workflow does the rest. If a channel job fails, the GitHub Release
 itself is still created; rerun the failed job after fixing secrets.
+
+## macOS app bundle (`Mdr.app`)
+
+Built by `macos/build-app.sh` (see `.github/workflows/release.yml`, job
+`build-macos-app`); `Info.plist` comes from `macos/Info.plist.in` with the
+version substituted from `Cargo.toml`.
+
+| Field | Value |
+|---|---|
+| Bundle name | `Mdr.app` |
+| Bundle identifier | `net.oxge.mdr` — shared with the iOS shell |
+| Executable | `Contents/MacOS/mdr`, the same CLI binary |
+| Icon | `Contents/Resources/Mdr.icns`, from `assets/logo-appicon.svg` |
+| Document types | `net.daringfireball.markdown`, `public.plain-text`, rank `Alternate` |
+| Minimum system | macOS 10.15 |
+| Architectures | universal (`aarch64` + `x86_64`, `lipo`'d) |
+
+`LSHandlerRank` is `Alternate` on purpose: mdr offers to open Markdown files
+but does not take the default handler away from the user's editor.
+
+### Signing
+
+Ad-hoc (`codesign -s -`). That is enough to launch but **not** enough to clear
+Gatekeeper, so downloaded copies need `xattr -dr com.apple.quarantine` — the
+README documents this next to the download links.
+
+To ship notarized builds later, replace the signing step in
+`macos/build-app.sh` with a Developer ID identity and add a `notarytool`
+submission to the `build-macos-app` job. Nothing else in the pipeline changes,
+and the README's `xattr` step then becomes unnecessary rather than wrong.
+
+### Homebrew Cask (not yet published)
+
+The `.zip` asset is Cask-shaped. A cask would let `brew install --cask mdr-app`
+handle the quarantine removal automatically (`zap`/`quarantine false`), which is
+the main reason to add one — track it separately from the `mdr` formula, which
+installs the CLI binary only.

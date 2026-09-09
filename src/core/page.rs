@@ -171,7 +171,7 @@ fn blocked_image_placeholder(src: &str, reason: &str) -> String {
 }
 
 /// Decode percent-encoded URL path components (e.g. %20 -> space).
-fn percent_decode(s: &str) -> String {
+pub fn percent_decode(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut chars = s.chars();
     while let Some(c) = chars.next() {
@@ -575,6 +575,17 @@ body.editing #kebab-menu button.editor-only {{ display: block; }}
     }});
     document.addEventListener('keydown', function(e) {{
         if ((e.metaKey || e.ctrlKey) && e.key === 's') {{ e.preventDefault(); save(); }}
+    }});
+
+    // Relative links to other documents ([x](./sub/b.md)) are resolved by Rust
+    // against the *current* document's directory, then opened in this window.
+    // In-page anchors (#id) and absolute URLs keep their normal behaviour.
+    document.querySelector('.content').addEventListener('click', function(e) {{
+        var a = e.target.closest('a[href]'); if (!a) return;
+        var href = a.getAttribute('href');
+        if (!href || href.charAt(0) === '#' || /^[a-z][a-z0-9+.-]*:/i.test(href)) return;
+        e.preventDefault();
+        post({{cmd: 'open', text: href}});
     }});
 
     // Called from Rust after the file on disk changed (external edit or our own save).

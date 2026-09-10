@@ -146,29 +146,43 @@ unattended, in scripts and over SSH.
   *currently open* document's directory and opened in the same window, so a
   tree of notes stays navigable. Images resolve the same way
 
-#### CLI options from the app bundle
+#### Opening the app from a shell
 
-`Mdr.app/Contents/MacOS/mdr` is the ordinary CLI binary, so every option in
-`mdr --help` works against the installed app:
+```bash
+# Same path Finder's "Open With" takes. Relative paths are fine, and if Mdr is
+# already running the open document is replaced in the existing window.
+open -a Mdr README.md
+```
+
+Options cannot ride along on this route: Finder and `open -a` deliver the file
+as an Apple Event (`kAEOpenDocuments`), which carries a path and nothing else.
+To pass options, run the bundled binary — it is the ordinary CLI binary, so
+everything in `mdr --help` works and each invocation gets its own window:
 
 ```bash
 /Applications/Mdr.app/Contents/MacOS/mdr --edit --toc README.md
-
-# Same thing through LaunchServices (-n = new instance, needed to pass args)
-open -n -a Mdr --args --edit --toc "$PWD/README.md"
 ```
 
-The cleanest setup is to put the bundled binary on `PATH`, so `mdr` on the
-command line and Mdr.app in the Dock are the same build:
+The cleanest setup is to put it on `PATH`, so `mdr` in the terminal and Mdr.app
+in the Dock are the same build:
 
 ```bash
 sudo ln -sf /Applications/Mdr.app/Contents/MacOS/mdr /usr/local/bin/mdr
-mdr --version
+mdr --edit README.md
 ```
 
-`open --args` only reaches an app that is starting up, which is why `-n` is
-required above; paths passed that way must be absolute. Running the binary
-directly has no such restriction — prefer it in scripts.
+For options that should apply to **documents opened from Finder**, use the
+config file instead — that is the only channel a double-click can carry them
+through:
+
+```kdl
+// ~/.config/mdr/config.kdl  (create with: mdr --init)
+mode editor   // always open in editor mode
+toc #true     // show the table of contents sidebar
+```
+
+CLI flags override the config file, so Finder can default to editor mode while
+`mdr README.md` in a terminal still opens the plain viewer.
 
 ## Usage
 

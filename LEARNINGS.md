@@ -17,6 +17,10 @@ Markdown ビューア／エディタの OSS 調査から、mdr フォーク（ox
 - **XcodeGen の `entitlements: path:` は `properties:` が無いと空で上書きする**: App Group を書いた entitlements が `<dict/>` に消えた。必ず `properties:` に中身を書く。
 - **シミュレータの E2E は `-openFile` 起動引数 + `simctl get_app_container` への投入 + NSLog の grep で組める**: `simctl launch --console-pty` の stdout に NSLog が出るので、`[mdr-ios] opened/rendered` を合否判定に使える。`simctl io screenshot` は絶対パスで指定する。
 - **公開リポジトリの Actions は未認証 API で監視できる**: `actions/runs` と `runs/<id>/jobs` を 90 秒間隔で叩き、completed になったジョブだけを差分で出す。認証が要らないので、gh が使えないプロセスからでも監視できる。
+- **「1 ドキュメント前提」のイベントループを差し替え可能にする型**: `run()` の先頭で `file_path` / `base_dir` / `watcher` を算出してクロージャに閉じ込めていると、ドキュメント切替を足した瞬間に相対パスが壊れる。`Doc { path, base_dir, content, watcher }` にまとめてイベントループに所有させ、切替は `Doc` ごと差し替えて `load_html` で再構築する。画像解決もライブプレビューも `doc.base_dir` を見るので、**パス基準が自動的に追随する**。「ファイル文脈ごとに絶対パス文脈を持つ」が設計の核。
+- **macOS アプリの起動経路は AppleScript で機械的に検証できる**: `open -a X.app file.md` → `System Events` で `name of first window` を読めば遷移の合否が付く。ページ内リンクのクリックは、スクショの座標から `logical = px / 2`（Retina）+ キャプチャ原点で screen 座標を出し `click at {x, y}`。ウィンドウは事前に `set position ... to {100, 100}` で固定すると計算が安定する。
+- **CLI バイナリを内蔵した .app には `--install-cli` を付ける**: `current_exe()` を `~/.local/bin/mdr` に symlink する。sudo 不要、symlink なのでアプリ更新に自動追随、PATH 判定して `export PATH=...` の行をそのまま出す。**自分が張った symlink は張り替え、実ファイルは拒否**（Homebrew や cargo install の同名バイナリを壊さない）。フルパスの登場を「初回 1 回」に減らせる。
+- **.app のアーカイブは `zip` でなく `ditto -c -k --sequesterRsrc --keepParent`**: symlink と ad-hoc 署名を保つ。`zip` は壊す。
 
 ## 失敗（再発させない）
 
@@ -33,6 +37,8 @@ Markdown ビューア／エディタの OSS 調査から、mdr フォーク（ox
 - **アクセシビリティ経由の一括置換では `textViewDidChange` が呼ばれない**: 編集モードを抜けるときに無条件で再描画する実装にした。
 - **Share Extension のデータ受け渡しは App Group が必須で、未署名のシミュレータビルドでは動かない**: 共有シートに現れて起動はするが `containerURL(forSecurityApplicationGroupIdentifier:)` が nil。Team ID で署名して初めて検証できる。
 - **MDHero の Zen モード（Cmd+Shift+F）は効かなかった**: コード上は存在する。`e.key === "f"` が Shift 押下時に `"F"` になる可能性が高い（未確認）。
+- **検証せずに書いたコマンドが不必要に複雑だった（2026-09-10）**: `open -n -a Mdr --args --edit --toc "$PWD/file.md"` を README に書いたが、実際は **`open -a Mdr file.md` で十分**（相対パス可、起動中なら同じウィンドウで差し替え）。`-n` と `--args` はフラグを渡すときだけ必要で、そのフラグは Finder 経由では**そもそも効かない**ので、この形は存在価値がなかった。ユーザーの「フルパスで書かないとだめですか」で気付いた。**コマンド例は書く前に 1 回叩く**。
+- **古いプロセスの残骸を新しい挙動と誤読しかけた**: 検証中に `mdr` が 3 プロセス残っており、`open -a ... a.md` の直後にウィンドウタイトルが `b.md` を返した。`pkill -x mdr` してから単一インスタンスで測り直したら期待通りだった。**GUI の検証はプロセス数を数えてから**。
 
 ## 業務知識
 
@@ -42,9 +48,16 @@ Markdown ビューア／エディタの OSS 調査から、mdr フォーク（ox
 - **フォークの所在**: `oxgenet/mdr`（oxgenet は Organization）。ローカルの remote は `origin` = oxgenet、`upstream` = clevercloud。SSH は tkykszk として通る。gh はキーチェーン制約で Claude 側から使えない。
 - **追加した CI**: `.github/workflows/update-build.yml`。main への push・毎週月曜・手動で `cargo update` → mac arm64/x64、win x64/arm64 をビルドし成果物添付。`v*` タグで Release。iOS/Android は `continue-on-error` の実験ジョブ（`cargo check` のみ、.ipa/.apk は出ない）。モバイル本対応は Tauri 2 モバイルへの移植が必要で、実験結果を見てから判断する方針。
 - **mdr の内部**: comrak `render.unsafe = true`（生 HTML 通過）、`resolve_local_images` が画像を base64 data URI に埋め込み（SVG ファイルは PNG 化）、CSP は `img-src data:`。HTML テンプレートは `webview.rs` の `build_html` に文字列で埋まっている。
+- **Finder / `open -a` はオプションを一切運べない**: どちらもファイルを **Apple Event（`kAEOpenDocuments`）** で渡す経路で、載るのはパスだけ。したがって Finder のダブルクリックに `--edit` 相当を効かせる手段は **`~/.config/mdr/config.kdl`（`mode editor` / `toc #true`）だけ**。CLI フラグが config を上書きするので「Finder からはエディタ、ターミナルからは素のビューア」が両立する。コマンドライン引数が使えるのは `Contents/MacOS/mdr` を直接叩く経路のみ。
+- **`Mdr.app` の構成**: `net.oxge.mdr`（iOS 殻と共有）、実行体は `Contents/MacOS/mdr`＝CLI と同一バイナリ、`CFBundleDocumentTypes` に `net.daringfireball.markdown` / `public.plain-text`、**`LSHandlerRank` は `Alternate`**（インストールしただけで既定ハンドラを奪わない。奪う方針なら `Owner`）。universal（`lipo`）、ad-hoc 署名。ビルドは `macos/build-app.sh`、CI は release.yml の `build-macos-app` と ci.yml の `macos-app`。
+- **ad-hoc 署名は起動には足りるが Gatekeeper は越えない**: 配布物には必ず `xattr -dr com.apple.quarantine /Applications/Mdr.app` の手順を添える。GUI 経路（右クリック→開く、システム設定→このまま開く）もあるが、**スクリプトや SSH で効くのは `xattr` だけ**。notarize すれば手順ごと不要になる（署名ステップ差し替え + `notarytool` 追加でパイプラインの他は不変）。Homebrew Cask なら quarantine 解除まで自動化できる。
 
 ## 覚えておく価値のある解放
 
 - **モバイル実験ジョブの結果（2026-09-06、run 33988726441）**: iOS（aarch64-apple-ios）も Android（aarch64-linux-android）も **`muda` 0.19.3 の 1 クレートだけで失敗**（`platform_impl` にモバイル実装がなく `E0432`）。wry・tao・resvg・usvg・comrak・notify・mermaid-rs-renderer・kdl は両ターゲットで `cargo check` を通過した。mdr 本体のコードは muda で止まったため未検証。次の一手は「muda を `#[cfg(not(any(target_os = "ios", target_os = "android")))]` で外す」だけで、依存の壁はほぼ消える。その先の `.ipa` / `.apk` 化は Tauri 2 モバイルの土台が要る。
 - **モバイル判断は実験ジョブの生ログで行う**: wry/tao は iOS/Android 対応だが muda（メニュー）と CLI 構造が壁になる見込み。ジョブがどのクレートで止まったかを確認してから Tauri 移植の工数を見積もる。
 - **CI ジョブの `cargo tree --depth 1` を成果物に残す**: 「最新モジュール取得」の証跡になり、依存のバージョン差で壊れたときの比較材料になる。
+- **tao / wry でファイルを受け取る 2 経路（tao 0.35 / wry 0.55）**: Finder のダブルクリックと `open -a` は **`Event::Opened { urls }`**、ウィンドウへのドロップは **`WebViewBuilder::with_drag_drop_handler`**（webview が全面を覆うので tao の `WindowEvent::DroppedFile` は macOS では発火しない。他プラットフォーム用にフォールバックとして両方受けておく）。ハンドラは `true` を返すと消費、`false` でページに委ねる。
+- **LaunchServices は `-psn_0_12345` を argv に足すことがある**: clap が unknown argument で落ちる。`std::env::args_os().filter(|a| !a.to_string_lossy().starts_with("-psn_"))` を `Cli::parse_from` に渡す。
+- **.app 起動（引数も stdin も無い）の判定は `current_exe()` の親が `Contents/MacOS` かどうか**: Finder 起動では stdin が TTY でないため、stdin フォールバックのある CLI はそのままだと空入力を読んで固まる。バンドル判定を **stdin 判定より先に**置き、空ウィンドウ（ドロップ待ち）に分岐させる。
+- **相対リンクは画像と別ルールにしてよい**: 画像はユーザーの操作なしに埋め込まれるので `base_dir` 内に封じ込める。リンク遷移は明示的なクリックで、開いた先が新しい `base_dir` になるため `../` を許可してよい。ノートツリーでは `../` が普通に要る。

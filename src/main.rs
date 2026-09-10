@@ -56,6 +56,80 @@ struct Cli {
     /// (webview backend). This is what Mdr.app does when launched from Finder.
     #[arg(short = 'n', long)]
     new: bool,
+
+    /// Symlink this executable as `mdr` into a bin directory and exit, so the
+    /// copy inside Mdr.app is reachable from a terminal as plain `mdr`.
+    #[arg(long)]
+    install_cli: bool,
+
+    /// Directory for --install-cli [default: ~/.local/bin]
+    #[arg(long, value_name = "DIR")]
+    prefix: Option<PathBuf>,
+}
+
+/// Where `--install-cli` puts the symlink: user-writable, needs no sudo, and
+/// is on PATH by default on most shells.
+#[cfg(unix)]
+fn default_bin_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default()
+        .join(".local/bin")
+}
+
+/// Symlink this executable as `<dir>/mdr`, so `mdr` on the command line and
+/// Mdr.app in the Dock are the same build. Never exits successfully without
+/// having created the link.
+#[cfg(unix)]
+fn install_cli(prefix: Option<PathBuf>) -> ! {
+    let exe = std::env::current_exe().unwrap_or_else(|e| {
+        eprintln!("Error: cannot locate this executable: {}", e);
+        process::exit(1);
+    });
+    let dir = prefix.unwrap_or_else(default_bin_dir);
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        eprintln!("Error: cannot create {}: {}", dir.display(), e);
+        process::exit(1);
+    }
+    let link = dir.join("mdr");
+
+    // Replace a symlink we (or a previous install) made, but never clobber a
+    // real binary someone installed by other means.
+    match std::fs::symlink_metadata(&link) {
+        Ok(m) if m.file_type().is_symlink() => {
+            if let Err(e) = std::fs::remove_file(&link) {
+                eprintln!("Error: cannot replace {}: {}", link.display(), e);
+                process::exit(1);
+            }
+        }
+        Ok(_) => {
+            eprintln!("Error: {} already exists and is not a symlink.", link.display());
+            eprintln!("Remove it first, or pass --prefix <DIR> to install elsewhere.");
+            process::exit(1);
+        }
+        Err(_) => {}
+    }
+
+    if let Err(e) = std::os::unix::fs::symlink(&exe, &link) {
+        eprintln!("Error: cannot link {}: {}", link.display(), e);
+        if e.kind() == io::ErrorKind::PermissionDenied {
+            eprintln!("Try: sudo mdr --install-cli --prefix {}", dir.display());
+        }
+        process::exit(1);
+    }
+    println!("{} -> {}", link.display(), exe.display());
+
+    let on_path = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).any(|d| d == dir))
+        .unwrap_or(false);
+    if on_path {
+        println!("{} is on PATH — `mdr` is ready to use.", dir.display());
+    } else {
+        println!();
+        println!("{} is not on PATH. Add it:", dir.display());
+        println!("  echo 'export PATH=\"{}:$PATH\"' >> ~/.zshrc && exec zsh", dir.display());
+    }
+    process::exit(0);
 }
 
 /// True when this process is `Mdr.app/Contents/MacOS/mdr`, i.e. launched from
@@ -171,6 +245,16 @@ fn main() {
     if cli.list_backends {
         print_backends();
         process::exit(0);
+    }
+
+    #[cfg(unix)]
+    if cli.install_cli {
+        install_cli(cli.prefix.clone());
+    }
+    #[cfg(not(unix))]
+    if cli.install_cli {
+        eprintln!("Error: --install-cli is Unix-only; add the app directory to PATH instead");
+        process::exit(1);
     }
 
     if cli.init {

@@ -163,12 +163,28 @@ everything in `mdr --help` works and each invocation gets its own window:
 /Applications/Mdr.app/Contents/MacOS/mdr --edit --toc README.md
 ```
 
-The cleanest setup is to put it on `PATH`, so `mdr` in the terminal and Mdr.app
-in the Dock are the same build:
+You only need that path once. `--install-cli` symlinks the bundled binary into
+`~/.local/bin` (user-writable, no `sudo`), so `mdr` in the terminal and Mdr.app
+in the Dock stay the same build — a new release replaces both at once:
 
 ```bash
-sudo ln -sf /Applications/Mdr.app/Contents/MacOS/mdr /usr/local/bin/mdr
+/Applications/Mdr.app/Contents/MacOS/mdr --install-cli
+# ~/.local/bin/mdr -> /Applications/Mdr.app/Contents/MacOS/mdr
+
 mdr --edit README.md
+```
+
+It prints the `export PATH=...` line to add to `~/.zshrc` if that directory is
+not on your PATH yet, and takes `--prefix <DIR>` for somewhere else
+(`--prefix /usr/local/bin` needs `sudo`). Re-running it is safe: it replaces
+its own symlink, and refuses to overwrite a real `mdr` binary installed by
+Homebrew or `cargo install`.
+
+Adding the bundle directory to PATH directly works too, and survives without
+any symlink:
+
+```bash
+echo 'export PATH="/Applications/Mdr.app/Contents/MacOS:$PATH"' >> ~/.zshrc
 ```
 
 For options that should apply to **documents opened from Finder**, use the

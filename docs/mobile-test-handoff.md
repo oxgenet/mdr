@@ -69,19 +69,46 @@ anything.
 
 **Pairing rule:** the unit tests in `src/ffi.rs`, the Android tests in
 `android/app/src/androidTest/.../MdrCoreInstrumentedTest.kt`, and the iOS suite
-you are about to write assert the *same contract*, test name for test name.
-Change one, change all three.
+in `ios/MdrAppTests/MdrCoreTests.swift` assert the *same contract*, test name
+for test name. Change one, change all three.
+
+One name differs on purpose: Android's `aLargeDocumentSurvivesTheJniBoundary`
+is `testALargeDocumentSurvivesTheFfiBoundary` on iOS, because that is the
+boundary iOS crosses.
 
 ### State of play
 
 | Area | State |
 |---|---|
-| `src/ffi.rs` | 16 tests written — **never compiled** |
-| `src/jni_bridge.rs` | New JNI mirror of the C ABI — **never compiled**; highest-risk file here |
+| `src/ffi.rs` | 16 tests, compiled and passing |
+| `src/jni_bridge.rs` | Compiles clean for `aarch64-linux-android`; all four JNI symbols exported |
 | `src/core/page.rs` | New shared `render_page()`; `ffi.rs` is now a thin wrapper over it |
-| `android/` | Complete. 30 tests written; 24 execute, 6 pass, 18 blocked on the missing `.so` |
-| `.github/workflows/ci.yml` | New `android` + `android-instrumented` jobs; mobile-core test step on all three OSes |
-| `ios/MdrApp` | Untouched — and has **no XCTest target at all** |
+| `android/` | 24 instrumented + 6 JVM tests, **all passing** on an API 34 emulator |
+| `.github/workflows/ci.yml` | `android`, `android-instrumented`, `macos-app` and `ios` jobs; the file now parses (see below) |
+| `ios/MdrApp` | `MdrAppTests` (17) + `MdrUITests` (7), both passing |
+| `macos/test-app.sh` | New: AppleScript-driven launch, document switching, `--install-cli` |
+
+### Done in the macOS session (2026-09-16)
+
+All five tasks are complete and everything below is verified, not assumed.
+Worth knowing before you trust anything else here:
+
+- **`ci.yml` did not parse.** Step name `Run tests (mobile core: svg + FFI
+  only)` is a plain YAML scalar containing `": "`, which is illegal. GitHub
+  rejected the whole file, so *no* job on this branch had ever run — the
+  Android jobs included. Quoted, and all three workflows now parse.
+- **The licence list only ever covered the default feature set.** The
+  generator called `cargo metadata` without `--all-features`, so eframe,
+  egui_commonmark, syntect, ratatui, crossterm, ureq and their trees were
+  never attributed, contrary to this file's own docstring. Removing comrak's
+  syntect feature made it visible: syntect dropped out of the list while
+  still shipping in the egui backend. Fixed; 394 → 827 entries.
+- **`update_js_json_encodes_the_document` asserted something its input could
+  not produce**, in `ffi.rs` and in `MdrCoreInstrumentedTest.kt` both. comrak
+  escapes a quote in prose to `&quot;`, so `He said "hi"` never reached the
+  JS literal as a raw quote. Now uses a raw HTML attribute.
+- **The iOS bundle version was stale** (0.4.0 vs 0.4.1 in Cargo.toml and
+  Android's `versionName`), which the mirrored version assertion caught.
 
 Why none of the Rust was compiled: the Windows machine has Smart App Control
 enforced, which refuses every unsigned executable Cargo launches
@@ -243,10 +270,15 @@ Lines 16, 17, 21, 23 and 40 will save real time. The essentials:
 
 ## 11. Definition of done
 
-- [ ] `cargo test` and `cargo test --lib --no-default-features --features svg` pass
-- [ ] `cargo check --target aarch64-linux-android --lib --no-default-features --features svg` passes
-- [ ] Both `libmdr.so` files sent to Dhruv, and the Rust fixes committed
-- [ ] `python scripts/gen-licenses.py --check` exits 0
-- [ ] An XCTest target exists, mirrors `MdrCoreInstrumentedTest.kt`, and passes
-- [ ] `ios/build-app.sh` fails loudly on a real regression, not just a missing log line
-- [ ] CI runs the iOS tests on a macOS runner
+- [x] `cargo test` and `cargo test --lib --no-default-features --features svg` pass
+- [x] `cargo check --target aarch64-linux-android --lib --no-default-features --features svg` passes
+- [x] Both `libmdr.so` files built, and the Rust fixes committed — and the
+      Android suite was run here on an API 34 emulator: 24/24 instrumented,
+      6/6 JVM, so the 18 that were blocked are green
+- [x] `python scripts/gen-licenses.py --check` exits 0 (needs Python 3.7+;
+      macOS system python3 is 3.6)
+- [x] An XCTest target exists, mirrors `MdrCoreInstrumentedTest.kt`, and passes
+- [x] `ios/build-app.sh` fails loudly on a real regression, not just a missing log line
+- [x] CI runs the iOS tests on a macOS runner
+
+Still open: this branch is **not** merged to `main`, as asked.

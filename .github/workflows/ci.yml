@@ -69,7 +69,7 @@ jobs:
       # The feature set the iOS and Android shells link (rendering core + C ABI,
       # no desktop backend). Running it on every OS also exercises the path
       # handling in the FFI base_dir tests against Windows separators.
-      - name: Run tests (mobile core: svg + FFI only)
+      - name: "Run tests (mobile core: svg + FFI only)"
         run: cargo test --lib --no-default-features --features svg
 
   android:
@@ -197,3 +197,53 @@ jobs:
           codesign --verify --verbose=2 ./target/macos/Mdr.app
           plutil -lint ./target/macos/Mdr.app/Contents/Info.plist
           test -f ./target/macos/Mdr.app/Contents/Resources/Mdr.icns
+
+      # Behaviour, not just shape. The AppleScript half is skipped: reading
+      # another app's windows goes through System Events, which needs
+      # Accessibility permission that a runner cannot grant. What is left still
+      # exercises the shipped binary, including --install-cli's refusal to
+      # clobber a real one. Run it locally without the flag for the rest.
+      - name: Test the bundle's behaviour
+        run: MDR_SKIP_APPLESCRIPT=1 ./macos/test-app.sh
+
+  ios:
+    name: iOS shell tests
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ios-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: ios-cargo-
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      # Builds the staticlib, generates the Xcode project, boots a simulator,
+      # seeds the fixture and runs both suites: MdrAppTests (the Rust core
+      # across the C ABI, mirroring the Android instrumented tests) and
+      # MdrUITests (the app driven through its UI).
+      - name: Build and test the iOS shell
+        run: MDR_EXPECT_LANG=ja ./ios/build-app.sh tests/samples/lang/ja.md
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: |
+            target/ios-app/TestResults.xcresult
+            target/ios-app/test.log
+            target/ios-app/screenshot.png

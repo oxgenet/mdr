@@ -401,6 +401,43 @@ mod tests {
         std::fs::remove_dir_all(&tmp).ok();
     }
 
+    /// Switching documents has to move the rendering base with it, not just the
+    /// link resolution. `resolve_href` proves a link points somewhere; this
+    /// proves the page rendered after the switch reads images from the new
+    /// document's directory. The two used to be the same line of code, and the
+    /// class comment on `Doc` says why they must stay together.
+    #[test]
+    fn rendering_follows_the_document_across_a_switch() {
+        const PNG: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        let tmp = std::env::temp_dir().join(format!("mdr-switch-{}", std::process::id()));
+        let sub = tmp.join("sub");
+        std::fs::create_dir_all(&sub).unwrap();
+        // The same relative reference, `pic.png`, in both documents — but only
+        // the one next to each document should ever be found.
+        std::fs::write(tmp.join("a.md"), "# a\n\n![p](pic.png)").unwrap();
+        std::fs::write(sub.join("b.md"), "# b\n\n![p](pic.png)").unwrap();
+        std::fs::write(sub.join("pic.png"), PNG).unwrap();
+
+        let opts = ViewOptions::default();
+
+        // a.md has no pic.png beside it, so nothing may be inlined.
+        let a = Doc::load(Some(&tmp.join("a.md"))).unwrap();
+        assert!(
+            !a.html(&opts).contains("data:image/png;base64,"),
+            "a.md must not pick up sub/pic.png"
+        );
+
+        // Following the link to sub/b.md moves the base with it.
+        let b = Doc::load(Some(&sub.join("b.md"))).unwrap();
+        assert!(
+            b.html(&opts).contains("data:image/png;base64,"),
+            "after the switch, images must resolve from the new document's directory"
+        );
+        assert!(b.title().ends_with("b.md"), "the window title tracks the open document");
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
     #[test]
     fn welcome_screen_has_no_file_and_never_starts_in_editor_mode() {
         let doc = Doc::load(None).unwrap();

@@ -139,9 +139,14 @@ class MdrCoreInstrumentedTest {
     fun updateScriptJsonEncodesTheDocument() {
         // WebView.evaluateJavascript takes source, not arguments: a raw quote,
         // backslash or newline from the document would be a syntax error.
-        val js = MdrCore.updateScript("He said \"hi\"\n\nC:\\path\\to", "")
+        //
+        // The quote has to come from raw HTML, not from prose: comrak escapes
+        // a quote in text to `&quot;`, so `He said "hi"` would prove nothing.
+        // `render.unsafe = true` passes an attribute through verbatim, which
+        // is the case that actually reaches the JS literal as a raw quote.
+        val js = MdrCore.updateScript("<span title=\"hi\">x</span>\n\nC:\\path\\to", "")
         assertFalse("update script must stay on one line: $js", js.contains('\n'))
-        assertTrue("quotes not escaped: $js", js.contains("""\"hi\""""))
+        assertTrue("quotes not escaped: $js", js.contains("""title=\"hi\""""))
         assertTrue("backslashes not escaped: $js", js.contains("""C:\\path\\to"""))
     }
 

@@ -24,6 +24,14 @@ fn opt(s: &str) -> Option<&str> {
 
 /// Render a complete HTML page (viewer/editor UI included) for `markdown`.
 /// `base_dir` resolves relative images; `lang` is an explicit tag or "" for auto.
+///
+/// # Safety
+///
+/// Each of `markdown`, `base_dir` and `lang` must be either null or a pointer
+/// to a NUL-terminated C string that stays valid for the duration of the call.
+/// Null is accepted and read as an empty string. The returned pointer is owned
+/// by the caller and must be released with [`mdr_free`]; it is null if the
+/// rendered page could not be converted to a C string.
 #[no_mangle]
 pub unsafe extern "C" fn mdr_render_page(
     markdown: *const c_char,
@@ -39,6 +47,13 @@ pub unsafe extern "C" fn mdr_render_page(
 }
 
 /// JS that updates an already loaded page (body, TOC, lang) from new markdown.
+///
+/// # Safety
+///
+/// Each of `markdown`, `base_dir` and `lang` must be either null or a pointer
+/// to a NUL-terminated C string that stays valid for the duration of the call.
+/// Null is accepted and read as an empty string. The returned pointer is owned
+/// by the caller and must be released with [`mdr_free`].
 #[no_mangle]
 pub unsafe extern "C" fn mdr_render_update_js(
     markdown: *const c_char,
@@ -52,6 +67,13 @@ pub unsafe extern "C" fn mdr_render_update_js(
 }
 
 /// Resolved BCP 47 language tag for the document ("" when none).
+///
+/// # Safety
+///
+/// Both `markdown` and `lang` must be either null or a pointer to a
+/// NUL-terminated C string that stays valid for the duration of the call.
+/// Null is accepted and read as an empty string. The returned pointer is owned
+/// by the caller and must be released with [`mdr_free`].
 #[no_mangle]
 pub unsafe extern "C" fn mdr_detect_lang(markdown: *const c_char, lang: *const c_char) -> *mut c_char {
     let md = arg(markdown);
@@ -66,6 +88,13 @@ pub extern "C" fn mdr_version() -> *mut c_char {
 }
 
 /// Release a string returned by this library.
+///
+/// # Safety
+///
+/// `p` must be null, or a pointer returned by one of this module's render
+/// functions and not yet freed. Passing anything else — a pointer this library
+/// did not produce, or one already given to `mdr_free` — is undefined
+/// behaviour. Null is ignored.
 #[no_mangle]
 pub unsafe extern "C" fn mdr_free(p: *mut c_char) {
     if !p.is_null() {
@@ -240,9 +269,14 @@ mod tests {
         // The shells hand this string straight to `evaluateJavaScript` /
         // `evaluate_script`, so every quote, backslash and newline in the
         // document has to survive as an encoded JS string literal.
-        let js = update_js("He said \"hi\"\n\nC:\\path\\to", ".", "");
+        //
+        // The quote has to come from raw HTML, not from prose: comrak escapes
+        // a quote in text to `&quot;`, so `He said "hi"` would prove nothing.
+        // `render.unsafe = true` passes an attribute through verbatim, which
+        // is the case that actually reaches the JS literal as a raw quote.
+        let js = update_js("<span title=\"hi\">x</span>\n\nC:\\path\\to", ".", "");
         assert!(!js.contains('\n'), "update JS must stay on one line: {}", js);
-        assert!(js.contains(r#"\"hi\""#), "quotes not escaped: {}", js);
+        assert!(js.contains(r#"title=\"hi\""#), "quotes not escaped: {}", js);
         assert!(js.contains(r"C:\\path\\to"), "backslashes not escaped: {}", js);
     }
 

@@ -328,13 +328,12 @@ fn rasterize_svg_to_png_data_uri(
 
     // Reject files that aren't actually SVG (e.g. HTML pages saved with .svg extension)
     let trimmed = svg_data.trim_start();
-    if !trimmed.starts_with('<')
+    if (!trimmed.starts_with('<')
         || trimmed.starts_with("<!DOCTYPE html")
-        || trimmed.starts_with("<html")
+        || trimmed.starts_with("<html"))
+        && !trimmed.contains("<svg")
     {
-        if !trimmed.contains("<svg") {
-            return Err("File is not a valid SVG (possibly an HTML page)".into());
-        }
+        return Err("File is not a valid SVG (possibly an HTML page)".into());
     }
 
     // Max pixel dimension to avoid memory issues
@@ -348,8 +347,7 @@ fn rasterize_svg_to_png_data_uri(
         Arc::new(db)
     });
 
-    let mut options = usvg::Options::default();
-    options.fontdb = Arc::clone(fontdb);
+    let options = usvg::Options { fontdb: Arc::clone(fontdb), ..Default::default() };
     let tree = usvg::Tree::from_str(&svg_data, &options)?;
     let size = tree.size();
     let svg_w = size.width();

@@ -72,8 +72,9 @@ def render():
         "//! dependencies; CI checks this file is current.",
         "",
         "/// Rust crates in mdr's dependency graph: (name, version, SPDX license).",
+        "/// `static`, not `const`: a const this size is copied at every use site.",
         "/// Covers every backend and platform, so a given build may link fewer.",
-        f"pub const CRATES: [(&str, &str, &str); {len(cs)}] = [",
+        f"pub static CRATES: [(&str, &str, &str); {len(cs)}] = [",
     ]
     lines += [f'    ("{rs(n)}", "{rs(v)}", "{rs(l)}"),' for n, v, l in cs]
     lines += [
@@ -81,7 +82,7 @@ def render():
         "",
         "/// Non-Rust assets compiled into the binary: (name, version, license,",
         "/// copyright holder, path in this repository).",
-        f"pub const BUNDLED: [(&str, &str, &str, &str, &str); {len(BUNDLED)}] = [",
+        f"pub static BUNDLED: [(&str, &str, &str, &str, &str); {len(BUNDLED)}] = [",
     ]
     lines += [f'    ("{rs(n)}", "{rs(v)}", "{rs(l)}", "{rs(c)}", "{rs(p)}"),'
               for n, v, l, c, p in BUNDLED]

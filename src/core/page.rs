@@ -943,8 +943,6 @@ fn build_licenses_html() -> (String, String) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     fn about_page() -> String {
         build_html("<p>x</p>", &[], "x", "", &ViewOptions::default())
     }

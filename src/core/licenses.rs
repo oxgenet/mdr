@@ -5,8 +5,9 @@
 //! dependencies; CI checks this file is current.
 
 /// Rust crates in mdr's dependency graph: (name, version, SPDX license).
+/// `static`, not `const`: a const this size is copied at every use site.
 /// Covers every backend and platform, so a given build may link fewer.
-pub const CRATES: [(&str, &str, &str); 404] = [
+pub static CRATES: [(&str, &str, &str); 404] = [
     ("adler2", "2.0.1", "0BSD OR MIT OR Apache-2.0"),
     ("aho-corasick", "1.1.5", "Unlicense OR MIT"),
     ("anstream", "1.0.0", "MIT OR Apache-2.0"),
@@ -415,7 +416,7 @@ pub const CRATES: [(&str, &str, &str); 404] = [
 
 /// Non-Rust assets compiled into the binary: (name, version, license,
 /// copyright holder, path in this repository).
-pub const BUNDLED: [(&str, &str, &str, &str, &str); 2] = [
+pub static BUNDLED: [(&str, &str, &str, &str, &str); 2] = [
     ("highlight.js", "11.11.1", "BSD-3-Clause", "Josh Goebel and other contributors", "assets/highlight.min.js"),
     ("mermaid", "bundled", "MIT", "Mermaid contributors", "assets/mermaid.min.js"),
 ];

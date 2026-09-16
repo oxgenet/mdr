@@ -22,7 +22,7 @@ OUT = ROOT / "src" / "core" / "licenses.rs"
 
 # Copyright lines shown in the About dialog. Keep in sync with LICENSE,
 # NOTICE.md, Cargo.toml, build.rs and packaging/ — those are not generated.
-COPYRIGHT = "Copyright \u00a9 2027 Opusify IT Solutions Pvt. Ltd."
+COPYRIGHT = "Copyright \u00a9 2026 Opusify IT Solutions Pvt. Ltd."
 UPSTREAM_COPYRIGHT = "Copyright \u00a9 2026 Clever Cloud \u2014 original mdr, MIT"
 
 # Assets vendored into the binary, which `cargo metadata` cannot know about.

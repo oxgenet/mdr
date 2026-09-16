@@ -7,7 +7,7 @@
 /// The fork's copyright holder, as shown in the About dialog. Also stated in
 /// LICENSE, NOTICE.md, Cargo.toml, build.rs and packaging/ — grep for it
 /// before changing, those are not generated from here.
-pub const COPYRIGHT: &str = "Copyright © 2027 Opusify IT Solutions Pvt. Ltd.";
+pub const COPYRIGHT: &str = "Copyright © 2026 Opusify IT Solutions Pvt. Ltd.";
 
 /// The upstream work this is a fork of. MIT requires its notice to travel
 /// with every copy, so it is shown alongside the fork's own line.

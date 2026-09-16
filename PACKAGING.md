@@ -18,7 +18,7 @@ are enabled.
 | Attribution | `NOTICE.md` (fork of https://github.com/CleverCloud/mdr, not affiliated) |
 | Homebrew | `oxgenet/tap/mdr` (tap repo `oxgenet/homebrew-tap`) |
 | Scoop | bucket `oxgenet` (repo `oxgenet/scoop-bucket`), app `mdr` |
-| WinGet | `oxgenet.mdr` |
+| WinGet | `opusify.mdr` |
 | AUR | `mdr-ox-bin` |
 | Debian / RPM | package `mdr`, from GitHub Release assets |
 
@@ -71,8 +71,8 @@ Each archive contains `mdr` (or `mdr.exe`), `LICENSE`, and `NOTICE.md`.
 1. Secret `WINGET_TOKEN` (classic PAT, `public_repo`); variable `WINGET_ENABLED=true`.
 2. The first version must be submitted as a new package PR to
    `microsoft/winget-pkgs` under `manifests/o/oxgenet/mdr/`; see
-   `packaging/winget/oxgenet.mdr.yaml` for the three manifests. Review takes days.
-3. Users: `winget install oxgenet.mdr`.
+   `packaging/winget/opusify.mdr.yaml` for the three manifests. Review takes days.
+3. Users: `winget install opusify.mdr`.
 
 ### Debian / Ubuntu and Fedora / RHEL
 

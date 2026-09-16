@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - Unreleased (oxgenet fork)
 
 First release of the oxgenet fork of mdr (https://github.com/oxgenet/mdr),
-forked from Clever Cloud's v0.3.2. Copyright (c) 2027 Opusify IT Solutions Pvt. Ltd. for
+forked from Clever Cloud's v0.3.2. Copyright (c) 2026 Opusify IT Solutions Pvt. Ltd. for
 the modifications; original work (c) 2026 Clever Cloud, MIT.
 
 ### Added
@@ -57,7 +57,7 @@ the modifications; original work (c) 2026 Clever Cloud, MIT.
 - `ffi::null_inputs_do_not_crash` no longer depends on the host's locale (an
   empty document falls back to the OS language for `<html lang>`)
 - Package identity moved to the oxgenet namespace (Homebrew `oxgenet/tap/mdr`,
-  Scoop bucket `oxgenet`, WinGet `oxgenet.mdr`); not published to crates.io
+  Scoop bucket `oxgenet`, WinGet `opusify.mdr`); not published to crates.io
 
 ## [0.3.2] - 2026-06-22
 

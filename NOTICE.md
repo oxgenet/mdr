@@ -10,7 +10,7 @@ This repository, **oxgenet/mdr**, is a fork of **mdr** by Clever Cloud.
 | Fork point | upstream `main` at commit `26e9250` (release v0.3.2, 2026-06-22) |
 | Fork maintainer | Opusify IT Solutions Pvt. Ltd. <tkykszk@gmail.com> |
 | Fork repository | https://github.com/oxgenet/mdr |
-| Fork license | MIT (same terms). Modifications are Copyright (c) 2027 Opusify IT Solutions Pvt. Ltd. |
+| Fork license | MIT (same terms). Modifications are Copyright (c) 2026 Opusify IT Solutions Pvt. Ltd. |
 
 ## Relationship to the original
 
@@ -18,7 +18,7 @@ This repository, **oxgenet/mdr**, is a fork of **mdr** by Clever Cloud.
   Do not report issues with this fork to the upstream project.
 - The binary keeps the name `mdr` for command-line compatibility. All package
   identifiers are namespaced so they never collide with upstream packages:
-  Homebrew `oxgenet/tap/mdr`, Scoop bucket `oxgenet`, WinGet `oxgenet.mdr`,
+  Homebrew `oxgenet/tap/mdr`, Scoop bucket `oxgenet`, WinGet `opusify.mdr`,
   AUR `mdr-ox-bin`.
 - Upstream's own distribution channels (`CleverCloud/misc/mdr`, `CleverCloud.mdr`,
   `mdr-bin`, crates.io `mdr`) continue to ship the original, unmodified project.

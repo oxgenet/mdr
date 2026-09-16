@@ -3,15 +3,15 @@
 # as three files (version / installer / defaultLocale). They are concatenated here
 # for reference; the release workflow (winget-releaser) generates the real ones.
 #
-# --- oxgenet.mdr.yaml (version manifest) ---
-PackageIdentifier: oxgenet.mdr
+# --- opusify.mdr.yaml (version manifest) ---
+PackageIdentifier: opusify.mdr
 PackageVersion: 0.4.0
 DefaultLocale: en-US
 ManifestType: version
 ManifestVersion: 1.6.0
 ---
-# --- oxgenet.mdr.installer.yaml ---
-PackageIdentifier: oxgenet.mdr
+# --- opusify.mdr.installer.yaml ---
+PackageIdentifier: opusify.mdr
 PackageVersion: 0.4.0
 InstallerType: zip
 NestedInstallerType: portable
@@ -28,8 +28,8 @@ Installers:
 ManifestType: installer
 ManifestVersion: 1.6.0
 ---
-# --- oxgenet.mdr.locale.en-US.yaml ---
-PackageIdentifier: oxgenet.mdr
+# --- opusify.mdr.locale.en-US.yaml ---
+PackageIdentifier: opusify.mdr
 PackageVersion: 0.4.0
 PackageLocale: en-US
 Publisher: Opusify IT Solutions Pvt. Ltd.
@@ -40,7 +40,7 @@ PackageName: mdr (oxgenet fork)
 PackageUrl: https://github.com/oxgenet/mdr
 License: MIT
 LicenseUrl: https://github.com/oxgenet/mdr/blob/main/LICENSE
-Copyright: Copyright (c) 2026 Clever Cloud; Copyright (c) 2027 Opusify IT Solutions Pvt. Ltd.
+Copyright: Copyright (c) 2026 Clever Cloud; Copyright (c) 2026 Opusify IT Solutions Pvt. Ltd.
 CopyrightUrl: https://github.com/oxgenet/mdr/blob/main/NOTICE.md
 ShortDescription: Markdown viewer/editor with Mermaid and CJK-aware rendering (fork of Clever Cloud's mdr)
 Description: |-

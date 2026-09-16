@@ -116,7 +116,7 @@ libc = "0.2"
 [package.metadata.deb]
 name = "mdr"
 maintainer = "Opusify IT Solutions Pvt. Ltd. <tkykszk@gmail.com>"
-copyright = "2026 Clever Cloud <opensource@clever-cloud.com>, 2027 Opusify IT Solutions Pvt. Ltd."
+copyright = "2026 Clever Cloud <opensource@clever-cloud.com>, 2026 Opusify IT Solutions Pvt. Ltd."
 license-file = ["packaging/debian/copyright", "0"]
 section = "text"
 assets = [

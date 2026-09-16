@@ -297,7 +297,7 @@ jobs:
     steps:
       - uses: vedantmgoyal9/winget-releaser@v2
         with:
-          identifier: oxgenet.mdr
+          identifier: opusify.mdr
           installers-regex: 'windows'
           token: ${{ secrets.WINGET_TOKEN }}
 

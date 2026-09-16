@@ -87,7 +87,50 @@ jobs:
       - name: Install librsvg
         run: brew install librsvg
 
+      # Developer ID signing + notarization when the secrets are configured;
+      # otherwise the bundle stays ad-hoc signed and users run `xattr -dr`.
+      # Homebrew Cask requires the notarized path: casks that fail Gatekeeper
+      # are no longer supported, and --no-quarantine was removed in brew 4.7.
+      # The `secrets` context is not available in a step `if:`, so gate on an
+      # env var derived from it instead.
+      - name: Check for signing secrets
+        id: signing
+        env:
+          HAS_CERT: ${{ secrets.MACOS_CERTIFICATE != '' }}
+          HAS_NOTARY: ${{ secrets.MACOS_NOTARY_APP_PASSWORD != '' }}
+        run: |
+          echo "cert=$HAS_CERT" >> "$GITHUB_OUTPUT"
+          echo "notary=$HAS_NOTARY" >> "$GITHUB_OUTPUT"
+
+      - name: Import signing certificate
+        if: steps.signing.outputs.cert == 'true'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PWD: ${{ secrets.MACOS_KEYCHAIN_PWD }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > cert.p12
+          security create-keychain -p "$KEYCHAIN_PWD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PWD" build.keychain
+          security import cert.p12 -k build.keychain \
+            -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PWD" build.keychain
+          rm -f cert.p12
+
+      - name: Store notarization credentials
+        if: steps.signing.outputs.notary == 'true'
+        run: |
+          xcrun notarytool store-credentials mdr-notary \
+            --apple-id "${{ secrets.MACOS_NOTARY_APPLE_ID }}" \
+            --team-id "${{ secrets.MACOS_TEAM_ID }}" \
+            --password "${{ secrets.MACOS_NOTARY_APP_PASSWORD }}"
+
       - name: Build Mdr.app + .dmg
+        env:
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          MACOS_NOTARY_PROFILE: ${{ steps.signing.outputs.notary == 'true' && 'mdr-notary' || '' }}
         run: ./macos/build-app.sh --universal --dmg
 
       - name: Zip Mdr.app
@@ -104,6 +147,9 @@ jobs:
           ./target/macos/Mdr.app/Contents/MacOS/mdr --version
           lipo -info ./target/macos/Mdr.app/Contents/MacOS/mdr
           codesign --verify --verbose=2 ./target/macos/Mdr.app
+          # Reports "accepted" only for a notarized build; an ad-hoc one is
+          # rejected here and still ships — it is the xattr path users take.
+          spctl --assess --type execute --verbose=4 ./target/macos/Mdr.app || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

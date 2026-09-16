@@ -5,8 +5,16 @@
 #   ./macos/build-app.sh --universal     # arm64 + x86_64 lipo'd together
 #   ./macos/build-app.sh --universal --dmg
 #
-# The bundle is ad-hoc signed (codesign -s -), which is enough to run but not
-# to escape Gatekeeper quarantine — see README for the xattr step users need.
+# Signing is ad-hoc by default: enough to run, not enough to clear Gatekeeper,
+# so downloads need `xattr -dr com.apple.quarantine` (see README). Set these to
+# produce a distributable build instead:
+#
+#   MACOS_SIGN_IDENTITY   "Developer ID Application: Name (TEAMID)"
+#   MACOS_NOTARY_PROFILE  notarytool keychain profile name, created with
+#                         `xcrun notarytool store-credentials`
+#
+# Both are needed: notarization rejects anything not signed with a Developer ID
+# and a hardened runtime.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -70,10 +78,37 @@ done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/Mdr.icns"
 rm -rf "$ICONSET" "$OUT/base-1024.png"
 
-echo "==> Signing (ad-hoc)"
-codesign --force --deep --sign - --options runtime "$APP" 2>/dev/null \
-  || codesign --force --deep --sign - "$APP"
+# Developer ID signing when an identity is configured, ad-hoc otherwise.
+# Only a Developer ID signature + notarization clears Gatekeeper; ad-hoc builds
+# launch fine but need `xattr -dr com.apple.quarantine` after download.
+if [ -n "${MACOS_SIGN_IDENTITY:-}" ]; then
+  echo "==> Signing (Developer ID: $MACOS_SIGN_IDENTITY)"
+  # --options runtime (hardened runtime) and a secure timestamp are both
+  # required for notarization to be accepted.
+  codesign --force --deep --timestamp --options runtime \
+    --sign "$MACOS_SIGN_IDENTITY" "$APP"
+else
+  echo "==> Signing (ad-hoc — will not clear Gatekeeper)"
+  codesign --force --deep --sign - --options runtime "$APP" 2>/dev/null \
+    || codesign --force --deep --sign - "$APP"
+fi
 codesign --verify --verbose=2 "$APP"
+
+# Notarization: submit, wait, and staple the ticket into the bundle so the app
+# validates offline. Needs an App Store Connect API key or an app-specific
+# password stored as a notarytool keychain profile.
+if [ -n "${MACOS_NOTARY_PROFILE:-}" ]; then
+  echo "==> Notarizing"
+  NOTARY_ZIP="$OUT/notarize.zip"
+  ditto -c -k --sequesterRsrc --keepParent "$APP" "$NOTARY_ZIP"
+  xcrun notarytool submit "$NOTARY_ZIP" \
+    --keychain-profile "$MACOS_NOTARY_PROFILE" --wait
+  # Staple the .app; the .dmg below is built from the stapled bundle and gets
+  # its own staple after creation.
+  xcrun stapler staple "$APP"
+  xcrun stapler validate "$APP"
+  rm -f "$NOTARY_ZIP"
+fi
 
 echo "==> $APP"
 if [ "$MAKE_DMG" = 1 ]; then
@@ -85,5 +120,10 @@ if [ "$MAKE_DMG" = 1 ]; then
   ln -s /Applications "$STAGE/Applications"
   hdiutil create -volname "Mdr $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
   rm -rf "$STAGE"
+  if [ -n "${MACOS_NOTARY_PROFILE:-}" ]; then
+    # A .dmg is notarized separately from the .app it contains.
+    xcrun notarytool submit "$DMG" --keychain-profile "$MACOS_NOTARY_PROFILE" --wait
+    xcrun stapler staple "$DMG"
+  fi
   echo "==> $DMG"
 fi

@@ -134,18 +134,42 @@ but does not take the default handler away from the user's editor.
 
 ### Signing
 
-Ad-hoc (`codesign -s -`). That is enough to launch but **not** enough to clear
-Gatekeeper, so downloaded copies need `xattr -dr com.apple.quarantine` — the
-README documents this next to the download links.
+Ad-hoc (`codesign -s -`) by default. That is enough to launch but **not**
+enough to clear Gatekeeper, so downloaded copies need
+`xattr -dr com.apple.quarantine` — the README documents this next to the
+download links.
 
-To ship notarized builds later, replace the signing step in
-`macos/build-app.sh` with a Developer ID identity and add a `notarytool`
-submission to the `build-macos-app` job. Nothing else in the pipeline changes,
-and the README's `xattr` step then becomes unnecessary rather than wrong.
+`macos/build-app.sh` already takes the Developer ID path when two variables are
+set; `release.yml` wires them to repository secrets and skips the whole thing
+when they are absent:
 
-### Homebrew Cask (not yet published)
+| Variable | Secret | Value |
+|---|---|---|
+| `MACOS_SIGN_IDENTITY` | `MACOS_SIGN_IDENTITY` | `Developer ID Application: Name (TEAMID)` |
+| `MACOS_NOTARY_PROFILE` | `MACOS_NOTARY_APP_PASSWORD` + `MACOS_NOTARY_APPLE_ID` + `MACOS_TEAM_ID` | notarytool keychain profile |
+| — | `MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PWD`, `MACOS_KEYCHAIN_PWD` | base64 `.p12` and its passwords |
 
-The `.zip` asset is Cask-shaped. A cask would let `brew install --cask mdr-app`
-handle the quarantine removal automatically (`zap`/`quarantine false`), which is
-the main reason to add one — track it separately from the `mdr` formula, which
-installs the CLI binary only.
+With them set the bundle is signed with a hardened runtime and a secure
+timestamp (both required by notarization), submitted with `notarytool --wait`,
+and stapled — the `.app` and the `.dmg` are notarized separately. The README's
+`xattr` step then becomes unnecessary rather than wrong. Requires an Apple
+Developer Program membership (USD 99/year).
+
+Note that `secrets` is not available in a step `if:`, so the workflow derives
+`steps.signing.outputs.{cert,notary}` from it first and gates on those.
+
+### Homebrew Cask — blocked until the build is notarized
+
+A cask is **not** viable for an ad-hoc signed app any more:
+
+- Cask applies `com.apple.quarantine` by default; it does not remove it
+- `--no-quarantine`, the only opt-out, was removed in Homebrew 4.7
+- Homebrew ended support for casks that fail Gatekeeper on **2026-09-01**
+  ([Homebrew/brew#20755](https://github.com/Homebrew/brew/issues/20755))
+
+So `brew install --cask mdr-app` would install an app the user still cannot
+open. `packaging/homebrew/mdr-app.rb` holds a ready cask for the day the
+Developer ID path above is switched on; until then the `.dmg`/`.zip` plus the
+documented `xattr` step is the supported route. The `mdr` **formula** is
+unaffected — it installs a CLI binary, not an `.app`, and Gatekeeper's app
+rules do not apply.

@@ -108,7 +108,7 @@ drag & drop. Two assets are published per release:
 | Asset | Use |
 |---|---|
 | `Mdr-X.Y.Z-macos-universal.dmg` | drag-install into `/Applications` |
-| `Mdr-X.Y.Z-macos-universal.zip` | scripted installs, Homebrew Cask |
+| `Mdr-X.Y.Z-macos-universal.zip` | scripted installs |
 
 Both are **universal** (Apple Silicon + Intel).
 

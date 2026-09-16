@@ -15,22 +15,20 @@ build that the Windows machine physically cannot produce.
 
 ## 1. Get the code
 
-The work is **not on GitHub** — it is an uncommitted patch against `main`.
-Cloning alone gives you the upstream project without any of it.
+The work is on the **`mobile-tests`** branch, not on `main`:
 
 ```bash
 git clone https://github.com/oxgenet/mdr.git
 cd mdr
-git apply /path/to/mdr-mobile-work.patch     # sent alongside this file
-git status --short                            # expect 13 entries
+git checkout mobile-tests
+git log --oneline -1     # 2f6e1de "Add Android shell and mobile contract tests..."
 ```
 
-Verified: the patch applies cleanly to a fresh shallow clone of `main`
-(`833b84a`, "Release 0.4.1"), binary Gradle wrapper included. If `git apply`
-complains, the patch was probably mangled in transit — it must stay LF-only and
-byte-exact, so send it as a file rather than pasting it.
+If you see `833b84a Release 0.4.1` instead, you are still on `main` and none of
+this work is present — no `android/`, no `src/jni_bridge.rs`.
 
-Commit it on a branch once applied; it is a coherent change set.
+Commit your fixes onto this branch. It is not merged to `main` and should not
+be until §9 has been reviewed and Task A has made the Rust actually compile.
 
 ## 2. Prerequisites
 

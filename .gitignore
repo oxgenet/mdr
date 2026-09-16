@@ -4,3 +4,12 @@
 .DS_Store
 .claude/
 /ios/MdrApp/MdrApp.xcodeproj
+
+# Android shell: Gradle output, IDE state, and the Rust cdylib that
+# `:app:buildRustCore` cross-compiles into the source tree.
+/android/.gradle/
+/android/.kotlin/
+/android/build/
+/android/local.properties
+/android/app/build/
+/android/app/src/main/jniLibs/

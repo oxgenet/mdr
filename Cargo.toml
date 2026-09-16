@@ -58,8 +58,10 @@ tui-backend = [
 [lib]
 name = "mdr"
 path = "src/lib.rs"
-# staticlib is linked into the iOS/Android shells (see ios/)
-crate-type = ["rlib", "staticlib"]
+# rlib      — the `mdr` binary and the test harness
+# staticlib — linked into the iOS shell (see ios/)
+# cdylib    — libmdr.so for Android's System.loadLibrary (see android/)
+crate-type = ["rlib", "staticlib", "cdylib"]
 
 [[bin]]
 name = "mdr"
@@ -71,7 +73,12 @@ winresource = "0.1"
 [dependencies]
 # Core
 clap = { version = "4", features = ["derive"] }
-comrak = { version = "0.52", default-features = false, features = ["syntect"] }
+# No "syntect" feature: nothing in this crate uses `comrak::plugins::syntect`
+# (the webview highlights with the bundled highlight.js, and the egui backend
+# brings its own syntect through egui_commonmark). Enabling it here pulled in
+# onig_sys, a C library, which made a C toolchain a build prerequisite on every
+# platform — including the iOS staticlib and the Android cdylib.
+comrak = { version = "0.52", default-features = false }
 notify = "8"
 notify-debouncer-mini = "0.7"
 mermaid-rs-renderer = { version = "0.2", default-features = false }
@@ -144,3 +151,8 @@ assets = [
 # Native menus only exist on desktop; iOS/Android builds skip muda entirely.
 [target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
 muda = { version = "0.19", optional = true }
+
+# The Android shell reaches the rendering core through JNI (src/jni_bridge.rs).
+# iOS uses the plain C ABI in src/ffi.rs instead and needs nothing here.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"

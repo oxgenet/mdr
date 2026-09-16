@@ -139,6 +139,18 @@ fn is_local_v4(v4: Ipv4Addr) -> bool {
     v4.is_loopback() || v4.is_private() || v4.is_link_local() || v4.is_unspecified()
 }
 
+/// The policy is process-global, so a test that flips it races any test that
+/// reads it — cargo runs a crate's tests in parallel threads of one process.
+/// Every test that touches the policy (here and in `core::page`) takes this.
+#[cfg(test)]
+pub(crate) static POLICY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Take [`POLICY_TEST_LOCK`], ignoring poisoning from an unrelated failing test.
+#[cfg(test)]
+pub(crate) fn lock_policy_for_test() -> std::sync::MutexGuard<'static, ()> {
+    POLICY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,12 +161,14 @@ mod tests {
 
     #[test]
     fn https_always_allowed() {
+        let _guard = lock_policy_for_test();
         assert!(allowed("https://example.com/a.png"));
         assert!(allowed("HTTPS://EXAMPLE.COM/a.png"));
     }
 
     #[test]
     fn http_local_literals_allowed() {
+        let _guard = lock_policy_for_test();
         for u in [
             "http://localhost/a.png",
             "http://localhost:8080/a.png",
@@ -176,6 +190,7 @@ mod tests {
 
     #[test]
     fn http_public_blocked() {
+        let _guard = lock_policy_for_test();
         for u in [
             "http://example.com/a.png",
             "http://8.8.8.8/a.png",
@@ -189,6 +204,7 @@ mod tests {
 
     #[test]
     fn odd_ports_and_credentials_blocked() {
+        let _guard = lock_policy_for_test();
         assert!(!allowed("http://127.0.0.1:22/a.png"));
         assert!(!allowed("http://192.168.1.1:631/a.png"));
         assert!(!allowed("http://user:pw@127.0.0.1/a.png"));
@@ -196,6 +212,7 @@ mod tests {
 
     #[test]
     fn other_schemes_blocked_and_local_sources_ignored() {
+        let _guard = lock_policy_for_test();
         assert!(!allowed("ftp://127.0.0.1/a.png"));
         assert!(allowed("data:image/png;base64,AAAA"));
         assert!(allowed("images/a.png"));
@@ -203,6 +220,8 @@ mod tests {
 
     #[test]
     fn switches() {
+        // Held for the whole test: this is the one that mutates the globals.
+        let _guard = lock_policy_for_test();
         set_allow_local_http(false);
         assert!(!allowed("http://127.0.0.1/a.png"));
         set_allow_local_http(true);

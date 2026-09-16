@@ -130,15 +130,36 @@ jobs:
       - name: Fetch latest dependency versions
         run: cargo update
 
-      - name: cargo build (iOS)
+      # What the shells actually link: the rendering core plus the C ABI, with
+      # no desktop backend. `ios/build-app.sh` builds exactly this, and the
+      # Android shell loads the cdylib from the same feature set. Building
+      # anything else here leaves the shipped configuration unguarded.
+      - name: cargo build (iOS — the staticlib MdrApp links)
         if: startsWith(matrix.target, 'aarch64-apple-ios')
-        run: cargo build --release --target ${{ matrix.target }} --no-default-features --features webview-backend
+        env:
+          # Xcode's linker cannot read the bitcode a newer rustc LLVM emits.
+          CARGO_PROFILE_RELEASE_LTO: off
+          RUSTFLAGS: -C embed-bitcode=no
+        run: cargo build --release --target ${{ matrix.target }} --lib --no-default-features --features svg
 
-      - name: cargo check (Android)
+      - name: cargo ndk build (Android — the cdylib the shell loads)
         if: matrix.target == 'aarch64-linux-android'
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
-        run: cargo ndk -t arm64-v8a check --no-default-features --features webview-backend
+        run: cargo ndk -t arm64-v8a build --release --lib --no-default-features --features svg
+
+      # Secondary probe: the full webview backend on mobile. tao/wry have
+      # iOS/Android backends and muda is cfg'd out, but nothing ships from
+      # this yet — it is here to catch the day it becomes viable.
+      - name: cargo check (webview backend, experimental)
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          if [ "${{ matrix.target }}" = "aarch64-linux-android" ]; then
+            cargo ndk -t arm64-v8a check --no-default-features --features webview-backend
+          else
+            cargo check --target ${{ matrix.target }} --no-default-features --features webview-backend
+          fi
 
   # Launch the real Windows binary on a GUI runner, open each sample document,
   # and capture the screen. Screenshots are uploaded as an artifact so the

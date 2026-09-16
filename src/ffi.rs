@@ -1,9 +1,7 @@
 //! C ABI for native shells (iOS / Android). Strings are UTF-8, NUL-terminated;
 //! every `*mut c_char` returned here must be released with [`mdr_free`].
 
-use crate::core::markdown::parse_markdown;
-use crate::core::page::{build_html, lang_tag, render_update_js, resolve_local_images, ViewOptions};
-use crate::core::toc;
+use crate::core::page::{lang_tag, render_page, render_update_js};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::Path;
@@ -37,12 +35,7 @@ pub unsafe extern "C" fn mdr_render_page(
     let md = arg(markdown);
     let base = arg(base_dir);
     let lang = arg(lang);
-    let html = parse_markdown(&md);
-    let html = resolve_local_images(&html, Path::new(&base));
-    let entries = toc::extract_toc(&md);
-    let tag = lang_tag(&md, opt(&lang));
-    let opts = ViewOptions { editor, toc, lang: opt(&lang).map(String::from) };
-    out(build_html(&html, &entries, &md, &tag, &opts))
+    out(render_page(&md, Path::new(&base), opt(&lang), editor, toc))
 }
 
 /// JS that updates an already loaded page (body, TOC, lang) from new markdown.
@@ -80,9 +73,27 @@ pub unsafe extern "C" fn mdr_free(p: *mut c_char) {
     }
 }
 
+/// Contract tests for the C ABI.
+///
+/// This is the whole surface the iOS shell (and any future Android shell) sees
+/// — `MdrCore.swift` calls these five functions and nothing else — so a change
+/// that only breaks a phone shows up here, on any host, without a device.
+///
+/// Assertions stay clear of the OS locale: an empty or Latin-only document
+/// falls back to `LANG`, so only documents that carry their own script (or an
+/// explicit tag) may be asserted on.
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Eight-byte PNG signature. `core::image_validation` checks the magic
+    /// bytes and the embedding path just reads the file, so this is a
+    /// sufficient stand-in for a real image.
+    const PNG: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+
+    fn c(s: &str) -> CString {
+        CString::new(s).unwrap()
+    }
 
     unsafe fn take(p: *mut c_char) -> String {
         let s = CStr::from_ptr(p).to_string_lossy().into_owned();
@@ -90,18 +101,33 @@ mod tests {
         s
     }
 
+    /// Call `mdr_render_page` the way a shell does: owned C strings in, the
+    /// returned buffer copied out and released.
+    fn page(md: &str, base: &str, lang: &str, editor: bool, toc: bool) -> String {
+        let (md, base, lang) = (c(md), c(base), c(lang));
+        unsafe { take(mdr_render_page(md.as_ptr(), base.as_ptr(), lang.as_ptr(), editor, toc)) }
+    }
+
+    fn update_js(md: &str, base: &str, lang: &str) -> String {
+        let (md, base, lang) = (c(md), c(base), c(lang));
+        unsafe { take(mdr_render_update_js(md.as_ptr(), base.as_ptr(), lang.as_ptr())) }
+    }
+
+    fn detect(md: &str, lang: &str) -> String {
+        let (md, lang) = (c(md), c(lang));
+        unsafe { take(mdr_detect_lang(md.as_ptr(), lang.as_ptr())) }
+    }
+
+    // --- lifetime and memory contract ---
+
     #[test]
     fn render_page_roundtrip() {
-        let md = CString::new("# こんにちは\n\ntext").unwrap();
-        let base = CString::new(".").unwrap();
-        let lang = CString::new("").unwrap();
-        let html = unsafe { take(mdr_render_page(md.as_ptr(), base.as_ptr(), lang.as_ptr(), false, false)) };
+        let md = "# こんにちは\n\ntext";
+        let html = page(md, ".", "", false, false);
         assert!(html.contains("<html lang=\"ja\">"));
         assert!(html.contains("こんにちは"));
-        let js = unsafe { take(mdr_render_update_js(md.as_ptr(), base.as_ptr(), lang.as_ptr())) };
-        assert!(js.contains("setAttribute('lang', \"ja\")"));
-        let tag = unsafe { take(mdr_detect_lang(md.as_ptr(), lang.as_ptr())) };
-        assert_eq!(tag, "ja");
+        assert!(update_js(md, ".", "").contains("setAttribute('lang', \"ja\")"));
+        assert_eq!(detect(md, ""), "ja");
     }
 
     #[test]
@@ -113,5 +139,145 @@ mod tests {
         // is about is that null pointers produce a page instead of a crash.
         assert!(html.contains("<html"), "no <html> tag in: {}", &html[..html.len().min(200)]);
         assert!(html.contains("</html>"));
+        // The other two entry points take the same null treatment.
+        let js = unsafe { take(mdr_render_update_js(std::ptr::null(), std::ptr::null(), std::ptr::null())) };
+        assert!(js.contains("innerHTML"));
+        let _ = unsafe { take(mdr_detect_lang(std::ptr::null(), std::ptr::null())) };
+    }
+
+    #[test]
+    fn free_ignores_null() {
+        // `out()` returns null if a string cannot be converted, and
+        // `MdrCore.take` frees whatever it was handed — including that null.
+        unsafe { mdr_free(std::ptr::null_mut()) };
+    }
+
+    #[test]
+    fn version_is_the_crate_version() {
+        let v = unsafe { take(mdr_version()) };
+        assert_eq!(v, env!("CARGO_PKG_VERSION"));
+    }
+
+    #[test]
+    fn repeated_render_and_free_is_stable() {
+        // Edit mode re-renders on a 0.3 s timer, so these two calls run for
+        // every pause in typing, each allocating a page Swift hands back.
+        for _ in 0..50 {
+            assert!(page("# 見出し\n\n本文テキスト", ".", "", false, true).contains("見出し"));
+            assert!(update_js("# 見出し", ".", "").contains("見出し"));
+        }
+    }
+
+    // --- view options ---
+
+    #[test]
+    fn view_flags_reach_the_rendered_page() {
+        // `editor` and `toc` cross the boundary as C bools. If they were ever
+        // swapped or dropped, the phone would silently open the wrong mode.
+        assert!(page("# t", ".", "", false, false).contains(r#"<body class="no-toc">"#));
+        assert!(page("# t", ".", "", true, false).contains(r#"<body class="no-toc editing">"#));
+        assert!(page("# t", ".", "", false, true).contains(r#"<body class="">"#));
+        assert!(page("# t", ".", "", true, true).contains(r#"<body class="editing">"#));
+    }
+
+    #[test]
+    fn document_source_is_escaped_into_the_editor_pane() {
+        // The <textarea> carries the raw source; markup left unescaped there
+        // would close the element early and truncate the document.
+        let html = page("<b>bold</b> & <i>x</i>", ".", "", true, false);
+        assert!(html.contains("&lt;b&gt;bold&lt;/b&gt; &amp; &lt;i&gt;x&lt;/i&gt;"));
+        // The rendered body still passes raw HTML through (render.unsafe = true).
+        assert!(html.contains("<b>bold</b>"));
+    }
+
+    #[test]
+    fn headings_become_toc_entries() {
+        // The iOS TOC sheet scrapes `.sidebar li` and then scrolls to the
+        // anchor id, so the list entry and the heading id have to agree.
+        let html = page("# Getting Started\n\n## Install", ".", "", false, true);
+        assert!(html.contains(r##"<li class="toc-h1"><a href="#getting-started">Getting Started</a></li>"##));
+        assert!(html.contains(r##"<li class="toc-h2"><a href="#install">Install</a></li>"##));
+        assert!(html.contains(r#"<h1 id="getting-started">"#));
+        assert!(html.contains(r#"<h2 id="install">"#));
+    }
+
+    // --- language resolution ---
+
+    #[test]
+    fn front_matter_beats_explicit_lang_which_beats_detection() {
+        let ko = "이것은 한국어 문서입니다.";
+        assert_eq!(detect(ko, ""), "ko");
+        assert_eq!(detect(ko, "ja"), "ja");
+        assert_eq!(detect(&format!("---\nlang: zh-Hant\n---\n{}", ko), "ja"), "zh-Hant");
+        assert!(page(ko, ".", "ja", false, false).contains(r#"<html lang="ja">"#));
+    }
+
+    #[test]
+    fn auto_means_no_explicit_language() {
+        // `--lang auto` / `lang auto` in config.kdl reach the shells verbatim.
+        assert_eq!(detect("これは日本語です。", "auto"), "ja");
+        assert_eq!(detect("这是简体中文的文档。", "auto"), "zh-Hans");
+    }
+
+    #[test]
+    fn an_unparseable_language_tag_falls_back_to_detection() {
+        assert_eq!(detect("これは日本語です。", "xx-YY"), "ja");
+    }
+
+    #[test]
+    fn update_js_reports_the_same_language_as_the_page() {
+        // The page is built once and then updated in place; if the two
+        // disagreed, CJK glyphs would change shape mid-edit.
+        let md = "---\nlang: zh-Hant\n---\n\nplain text";
+        assert!(page(md, ".", "", false, false).contains(r#"<html lang="zh-Hant">"#));
+        assert!(update_js(md, ".", "").contains(r#"setAttribute('lang', "zh-Hant")"#));
+    }
+
+    // --- live update JS ---
+
+    #[test]
+    fn update_js_json_encodes_the_document() {
+        // The shells hand this string straight to `evaluateJavaScript` /
+        // `evaluate_script`, so every quote, backslash and newline in the
+        // document has to survive as an encoded JS string literal.
+        let js = update_js("He said \"hi\"\n\nC:\\path\\to", ".", "");
+        assert!(!js.contains('\n'), "update JS must stay on one line: {}", js);
+        assert!(js.contains(r#"\"hi\""#), "quotes not escaped: {}", js);
+        assert!(js.contains(r"C:\\path\\to"), "backslashes not escaped: {}", js);
+    }
+
+    // --- base_dir and images ---
+
+    #[test]
+    fn relative_images_are_embedded_from_base_dir() {
+        // WKWebView loads the page with `baseURL: nil`, so nothing can be
+        // fetched from disk afterwards: images must be inlined at render time.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("pic.png"), PNG).unwrap();
+        let html = page("![a](pic.png)", &dir.path().to_string_lossy(), "", false, false);
+        assert!(html.contains("data:image/png;base64,"), "image was not inlined");
+        assert!(!html.contains(r#"src="pic.png""#));
+    }
+
+    #[test]
+    fn images_outside_base_dir_are_not_embedded() {
+        // A document can name `../secret.png`; embedding it would lift a file
+        // the user never opened into the page.
+        let dir = tempfile::tempdir().unwrap();
+        let sub = dir.path().join("sub");
+        std::fs::create_dir(&sub).unwrap();
+        std::fs::write(dir.path().join("secret.png"), PNG).unwrap();
+        let html = page("![a](../secret.png)", &sub.to_string_lossy(), "", false, false);
+        assert!(!html.contains("data:image/png;base64,"), "image escaped base_dir");
+        assert!(html.contains(r#"src="../secret.png""#));
+    }
+
+    #[test]
+    fn a_base_dir_that_does_not_exist_still_renders() {
+        // The document's provider (iCloud, a Files extension) can disappear
+        // between opening and re-rendering; the page must still come back.
+        let html = page("# t\n\n![a](pic.png)", "/no/such/dir", "", false, false);
+        assert!(html.contains("</html>"));
+        assert!(html.contains(r#"src="pic.png""#));
     }
 }

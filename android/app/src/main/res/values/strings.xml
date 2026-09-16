@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">mdr</string>
+    <string name="action_open">Open</string>
+    <string name="action_toc">Table of contents</string>
+    <string name="action_search">Search</string>
+    <string name="action_share">Share</string>
+    <string name="search_hint">Search in document</string>
+    <string name="no_headings">No headings in this document</string>
+    <string name="open_failed">Could not open this document</string>
+    <string name="welcome">Open a Markdown file to start reading.</string>
+</resources>

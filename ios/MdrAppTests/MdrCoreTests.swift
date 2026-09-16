@@ -206,6 +206,37 @@ final class MdrCoreTests: XCTestCase {
         XCTAssertTrue(html.contains(#"src="../secret.png""#))
     }
 
+    // MARK: - the seeded fixture (replaces build-app.sh's MDR_EXPECT_LANG grep)
+
+    /// `ios/build-app.sh` seeds a document into the app's Documents directory
+    /// and may declare the tag it should resolve to. This target is hosted in
+    /// the app, so it runs inside the app's sandbox and can read that file —
+    /// which is what makes the check possible without grepping NSLog.
+    ///
+    /// Skipped when the script did not declare an expectation, so the target
+    /// still runs standalone from Xcode.
+    func testTheSeededFixtureResolvesToItsExpectedLanguage() throws {
+        let env = ProcessInfo.processInfo.environment
+        let expected = env["MDR_EXPECT_LANG"] ?? ""
+        try XCTSkipIf(expected.isEmpty, "MDR_EXPECT_LANG not set — nothing to check")
+
+        let name = env["MDR_FIXTURE"] ?? "ja.md"
+        let docs = try XCTUnwrap(
+            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+            "the app has no Documents directory"
+        )
+        let url = docs.appendingPathComponent(name)
+        let markdown = try XCTUnwrap(
+            try? String(contentsOf: url, encoding: .utf8),
+            "\(name) was not seeded into the app's Documents directory at \(url.path)"
+        )
+        XCTAssertEqual(
+            expected,
+            MdrCore.detectLang(markdown: markdown),
+            "\(name) did not resolve to the language the build script expected"
+        )
+    }
+
     func testAnEmptyBaseDirStillRenders() {
         // What a document opened from a provider with no filesystem path gives
         // us: no directory at all.

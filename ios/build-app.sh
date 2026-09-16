@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
-# Build the iOS shell (Swift app + Rust core) for the simulator, install it,
-# open a sample document through the app's document machinery, screenshot,
-# and assert. Mirrors scripts/ios-sim.sh but for the real document-based app.
+# Build the iOS shell (Swift app + Rust core) for the simulator and run the
+# test suites against it: MdrAppTests (the Rust core across the C ABI) and
+# MdrUITests (the app driven through its real UI).
+#
+# This used to boot the app and grep NSLog for `[mdr-ios] opened` / `rendered`.
+# That could not tell a regression from a renamed log line, and said nothing
+# about whether anything reached the screen. `xcodebuild test` reports which
+# assertion failed instead.
 #
 # Usage: ios/build-app.sh [markdown-file] [device-name]
+# Env:   MDR_EXPECT_LANG   expected BCP 47 tag for the document (optional)
+#        MDR_SKIP_UITESTS  set to 1 to run only the unit tests (faster)
 # Requires: Xcode, xcodegen (brew install xcodegen), rustup target aarch64-apple-ios-sim
-# Outputs: target/ios-app/MdrApp.app, target/ios-app/screenshot*.png, target/ios-app/launch.log
+# Outputs: target/ios-app/MdrApp.app, target/ios-app/screenshot.png,
+#          target/ios-app/TestResults.xcresult
 set -euo pipefail
 export PATH="/opt/homebrew/opt/rustup/bin:/opt/homebrew/bin:$PATH"
 
@@ -23,40 +31,50 @@ echo "== rust core (aarch64-apple-ios-sim, staticlib, no LTO/bitcode for Xcode's
 echo "== xcodegen"
 (cd "$ROOT/ios/MdrApp" && xcodegen generate --quiet)
 
-echo "== xcodebuild"
-xcodebuild -project "$ROOT/ios/MdrApp/MdrApp.xcodeproj" -scheme MdrApp -configuration Release \
-  -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath "$OUT/DerivedData" CODE_SIGNING_ALLOWED=NO build -quiet 2>&1 | grep -E "error:|BUILD" || true
-rm -rf "$OUT/DerivedData/Build/Products/Release-iphonesimulator/MdrApp.app/MdrApp.stale" 2>/dev/null || true
-APP="$OUT/DerivedData/Build/Products/Release-iphonesimulator/MdrApp.app"
-[ -x "$APP/MdrApp" ] || { echo "FAIL: app not built"; exit 1; }
-rm -rf "$OUT/MdrApp.app" && cp -R "$APP" "$OUT/MdrApp.app"
-
+# The simulator setup below is unchanged: it picks a device, boots it and
+# brings up Simulator.app. Only the assertions at the end are different.
 echo "== simulator"
 if [ -z "$DEVICE_NAME" ]; then
-  UDID=$(xcrun simctl list devices available -j | python -c '
+  UDID=$(xcrun simctl list devices available -j | python3 -c '
 import sys,json
 d=json.load(sys.stdin)
+best=None
 for rt,devs in d["devices"].items():
     if "iOS" not in rt: continue
     for x in devs:
-        if x["name"].startswith("iPhone"): print(x["udid"]); sys.exit(0)')
+        if x["name"].startswith("iPhone"): best=(rt,x["udid"])
+if best: print(best[1])')
 else
-  UDID=$(xcrun simctl list devices available -j | python -c '
+  UDID=$(xcrun simctl list devices available -j | python3 -c '
 import sys,json
 name=sys.argv[1]; d=json.load(sys.stdin)
 for rt,devs in d["devices"].items():
     for x in devs:
         if x["name"]==name: print(x["udid"]); sys.exit(0)' "$DEVICE_NAME")
 fi
+[ -n "$UDID" ] || { echo "FAIL: no iPhone simulator available"; exit 1; }
 xcrun simctl boot "$UDID" 2>/dev/null || true
 xcrun simctl bootstatus "$UDID" -b >/dev/null
 open -a Simulator --args -CurrentDeviceUDID "$UDID" >/dev/null 2>&1 || true
+
+# `build-for-testing` first, so the app exists and can be installed before the
+# fixture is seeded. The test bundles run against that same build.
+echo "== build for testing"
+xcodebuild -project "$ROOT/ios/MdrApp/MdrApp.xcodeproj" -scheme MdrApp \
+  -configuration Debug -sdk iphonesimulator -destination "id=$UDID" \
+  -derivedDataPath "$OUT/DerivedData" CODE_SIGNING_ALLOWED=NO \
+  build-for-testing 2>&1 | grep -E "error:|BUILD" || true
+APP="$OUT/DerivedData/Build/Products/Debug-iphonesimulator/MdrApp.app"
+[ -x "$APP/MdrApp" ] || { echo "FAIL: app not built"; exit 1; }
+rm -rf "$OUT/MdrApp.app" && cp -R "$APP" "$OUT/MdrApp.app"
 
 echo "== install"
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
 xcrun simctl install "$UDID" "$OUT/MdrApp.app"
 
+# The test runner has its own sandbox and cannot write into the app's, so the
+# fixture is seeded from here. simctl install preserves the data container, so
+# this survives the reinstall that `test-without-building` does.
 echo "== seed document into the app's Documents (visible in Files > On My iPhone > mdr)"
 CONTAINER=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
 mkdir -p "$CONTAINER/Documents"
@@ -64,22 +82,34 @@ cp "$MD" "$CONTAINER/Documents/"
 for f in "$(dirname "$MD")"/*.png "$(dirname "$MD")"/*.svg; do [ -f "$f" ] && cp "$f" "$CONTAINER/Documents/" || true; done
 NAME=$(basename "$MD")
 
-echo "== launch (opens $NAME through the document controller)"
-: > "$OUT/launch.log"
-( xcrun simctl launch --console-pty "$UDID" "$BUNDLE_ID" -openFile "$NAME" > "$OUT/launch.log" 2>&1 & echo $! > "$OUT/launch.pid" )
-sleep "${MDR_IOS_WAIT:-10}"
-xcrun simctl io "$UDID" screenshot "$OUT/screenshot.png" >/dev/null 2>&1
-echo "screenshot: $OUT/screenshot.png"
+# Xcode forwards TEST_RUNNER_-prefixed variables into the test processes with
+# the prefix stripped. MDR_EXPECT_LANG is the same knob the old script had.
+echo "== test ($NAME${MDR_EXPECT_LANG:+, expecting lang=$MDR_EXPECT_LANG})"
+rm -rf "$OUT/TestResults.xcresult"
+# macOS still ships bash 3.2, where `"${arr[@]}"` on an empty array trips
+# `set -u`; the `+` expansion below keeps it quiet.
+SKIP=()
+[ "${MDR_SKIP_UITESTS:-0}" = "1" ] && SKIP=(-skip-testing:MdrUITests)
+set +e
+TEST_RUNNER_MDR_FIXTURE="$NAME" \
+TEST_RUNNER_MDR_EXPECT_LANG="${MDR_EXPECT_LANG:-}" \
+xcodebuild -project "$ROOT/ios/MdrApp/MdrApp.xcodeproj" -scheme MdrApp \
+  -configuration Debug -sdk iphonesimulator -destination "id=$UDID" \
+  -derivedDataPath "$OUT/DerivedData" CODE_SIGNING_ALLOWED=NO \
+  -resultBundlePath "$OUT/TestResults.xcresult" \
+  ${SKIP[@]+"${SKIP[@]}"} \
+  test-without-building 2>&1 | tee "$OUT/test.log" \
+  | grep -E "^Test Case|error:|failed|Executed [0-9]+ tests|\*\* TEST"
+rc=${PIPESTATUS[0]}
+set -e
 
-echo "== assertions"
-fail=0
-grep -q "\[mdr-ios\] opened" "$OUT/launch.log" && echo "PASS: document opened via UIDocument" || { echo "FAIL: document not opened"; fail=1; }
-grep -q "\[mdr-ios\] rendered" "$OUT/launch.log" && echo "PASS: page rendered in WKWebView" || { echo "FAIL: no render callback"; fail=1; }
-if [ -n "${MDR_EXPECT_LANG:-}" ]; then
-  grep -q "lang=$MDR_EXPECT_LANG" "$OUT/launch.log" && echo "PASS: lang=$MDR_EXPECT_LANG" || { echo "FAIL: lang mismatch: $(grep -o 'lang=[^ )]*' "$OUT/launch.log")"; fail=1; }
+xcrun simctl io "$UDID" screenshot "$OUT/screenshot.png" >/dev/null 2>&1 || true
+echo "screenshot: $OUT/screenshot.png"
+echo "results:    $OUT/TestResults.xcresult"
+
+if [ "$rc" = 0 ]; then
+  echo "RESULT: PASS"
+else
+  echo "RESULT: FAIL — open $OUT/TestResults.xcresult, or read $OUT/test.log"
+  exit 1
 fi
-xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q "$BUNDLE_ID" && echo "PASS: app running" || { echo "FAIL: app not running"; fail=1; }
-[ -s "$OUT/screenshot.png" ] && echo "PASS: screenshot" || { echo "FAIL: no screenshot"; fail=1; }
-grep "\[mdr-ios\]" "$OUT/launch.log" | sed 's/^/  log: /' | head -8
-kill "$(cat "$OUT/launch.pid")" 2>/dev/null || true
-[ "$fail" = 0 ] && echo "RESULT: PASS" || { echo "RESULT: FAIL"; exit 1; }

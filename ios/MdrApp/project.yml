@@ -95,6 +95,7 @@ targets:
     scheme:
       testTargets:
         - MdrAppTests
+        - MdrUITests
       gatherCoverageData: true
   # Share Extension: "mdr" in any app's share sheet for text and files.
   # Saves into the App Group Inbox; the app imports it on next activation.
@@ -162,3 +163,23 @@ targets:
         ENABLE_BITCODE: "NO"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MdrApp.app/MdrApp"
         BUNDLE_LOADER: "$(TEST_HOST)"
+
+  # End-to-end tests through the real UI, driven by `xcodebuild test`. These
+  # replace the NSLog greps ios/build-app.sh used to do; see that script.
+  MdrUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: ../MdrUITests
+    dependencies:
+      - target: MdrApp
+    info:
+      path: ../MdrUITests/Info.plist
+      properties:
+        CFBundleName: MdrUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.oxge.mdr.uitests
+        TEST_TARGET_NAME: MdrApp
+        ARCHS: arm64
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64

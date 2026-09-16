@@ -38,7 +38,11 @@ final class DocumentViewController: UIViewController, UITextViewDelegate, WKNavi
         title = document.fileURL.lastPathComponent
         navigationItem.largeTitleDisplayMode = .never
         editItem = UIBarButtonItem(image: UIImage(systemName: "pencil.tip.crop.circle"), style: .plain, target: self, action: #selector(toggleEdit))
+        editItem.accessibilityLabel = "Edit"
+        editItem.accessibilityIdentifier = "editButton"
         searchItem = UIBarButtonItem(image: UIImage(systemName: "magnifyingglass"), style: .plain, target: self, action: #selector(toggleSearch))
+        searchItem.accessibilityLabel = "Search"
+        searchItem.accessibilityIdentifier = "searchButton"
         installBarItems()
         navigationController?.hidesBarsOnSwipe = true   // PDF-viewer behaviour: bars hide while reading
 
@@ -52,6 +56,9 @@ final class DocumentViewController: UIViewController, UITextViewDelegate, WKNavi
 
         webView.navigationDelegate = self
         webView.scrollView.contentInsetAdjustmentBehavior = .automatic
+        webView.accessibilityIdentifier = "documentPage"
+        searchBar.accessibilityIdentifier = "documentSearch"
+        textView.accessibilityIdentifier = "sourceEditor"
         textView.delegate = self
         textView.font = UIFont.monospacedSystemFont(ofSize: 15, weight: .regular)
         textView.autocorrectionType = .no
@@ -89,12 +96,18 @@ final class DocumentViewController: UIViewController, UITextViewDelegate, WKNavi
 
     private func installBarItems() {
         navigationItem.titleView = nil
-        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Done", style: .done, target: self, action: #selector(close))
-        navigationItem.rightBarButtonItems = [
-            UIBarButtonItem(image: UIImage(systemName: "square.and.arrow.up"), style: .plain, target: self, action: #selector(share)),
-            editItem, searchItem,
-            UIBarButtonItem(image: UIImage(systemName: "list.bullet"), style: .plain, target: self, action: #selector(showToc)),
-        ]
+        let done = UIBarButtonItem(title: "Done", style: .done, target: self, action: #selector(close))
+        done.accessibilityIdentifier = "doneButton"
+        navigationItem.leftBarButtonItem = done
+        // Symbol-only buttons get no automatic label, which leaves them
+        // unreachable to VoiceOver and to the UI tests. Name them both.
+        let shareItem = UIBarButtonItem(image: UIImage(systemName: "square.and.arrow.up"), style: .plain, target: self, action: #selector(share))
+        shareItem.accessibilityLabel = "Share"
+        shareItem.accessibilityIdentifier = "shareButton"
+        let tocItem = UIBarButtonItem(image: UIImage(systemName: "list.bullet"), style: .plain, target: self, action: #selector(showToc))
+        tocItem.accessibilityLabel = "Table of contents"
+        tocItem.accessibilityIdentifier = "tocButton"
+        navigationItem.rightBarButtonItems = [shareItem, editItem, searchItem, tocItem]
     }
 
     private func render() {

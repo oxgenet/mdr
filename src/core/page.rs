@@ -405,6 +405,8 @@ pub fn build_html(
         String::new()
     };
 
+    let (lic_summary, lic_rows) = build_licenses_html();
+
     format!(
         r#"<!DOCTYPE html>
 <html{lang_attr}>
@@ -497,6 +499,42 @@ body.editing .content {{ margin-left: 50vw; max-width: none; }}
 body.editing #kebab-menu button.editor-only {{ display: block; }}
 #kebab-menu .sep {{ height: 1px; background: var(--border); margin: 6px 0; }}
 #kebab-menu .hint {{ float: right; color: var(--blockquote); font-size: 11px; margin-left: 16px; }}
+#about-backdrop {{
+    display: none; position: fixed; inset: 0; z-index: 1100;
+    background: rgba(0,0,0,0.45); align-items: center; justify-content: center;
+}}
+#about-backdrop.open {{ display: flex; }}
+#about {{
+    position: relative; width: min(560px, 92vw); max-height: 82vh; overflow-y: auto;
+    background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 24px 28px 20px; font-size: 13px; line-height: 1.6;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+}}
+#about h2 {{ margin: 0 0 2px; font-size: 20px; border: none; padding: 0; }}
+#about h3 {{ margin: 20px 0 6px; font-size: 13px; border: none; padding: 0; }}
+#about p {{ margin: 0 0 4px; }}
+#about .about-desc {{ color: var(--blockquote); }}
+#about .about-copy {{ margin-top: 10px; }}
+#about .about-url {{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }}
+#about-close {{
+    position: absolute; top: 10px; right: 12px; background: none; border: none;
+    color: var(--blockquote); font-size: 22px; line-height: 1; cursor: pointer;
+}}
+#about-close:hover {{ color: var(--fg); }}
+#about-licenses {{
+    margin-top: 8px; max-height: 260px; overflow-y: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+}}
+#about-licenses .lic {{
+    display: flex; gap: 10px; padding: 3px 10px; border-bottom: 1px solid var(--border);
+}}
+#about-licenses .lic:last-child {{ border-bottom: none; }}
+#about-licenses .lic-name {{ flex: 1 1 auto; overflow-wrap: anywhere; }}
+#about-licenses .lic-id {{ flex: 0 0 auto; color: var(--blockquote); text-align: right; }}
+#about-licenses .lic-head {{
+    background: var(--code-bg); font-weight: 600; position: sticky; top: 0;
+}}
 #toast {{
     display: none; position: fixed; bottom: 18px; right: 18px; z-index: 1000;
     padding: 8px 14px; border-radius: 6px; font-size: 13px;
@@ -520,7 +558,24 @@ body.editing #kebab-menu button.editor-only {{ display: block; }}
         <button data-act="toc"></button>
         <div class="sep editor-only"></div>
         <button data-act="save" class="editor-only">Save <span class="hint" id="save-hint"></span></button>
+        <div class="sep"></div>
+        <button data-act="about">About mdr</button>
     </div>
+</div>
+<div id="about-backdrop">
+  <div id="about" role="dialog" aria-modal="true" aria-label="About mdr">
+    <button id="about-close" title="Close" aria-label="Close">&times;</button>
+    <h2>mdr {app_version}</h2>
+    <p class="about-desc">Markdown viewer/editor with Mermaid and CJK-aware rendering</p>
+    <p class="about-copy">Copyright &copy; 2027 Opusify IT Solutions Pvt. Ltd.</p>
+    <p class="about-copy">Copyright &copy; 2026 Clever Cloud &mdash; original mdr, MIT</p>
+    <p class="about-desc">Released under the MIT License. A fork of
+      <span class="about-url">github.com/CleverCloud/mdr</span>, not affiliated with
+      Clever Cloud.</p>
+    <h3>Open source components</h3>
+    <p class="about-desc">{lic_summary}</p>
+    <div id="about-licenses">{lic_rows}</div>
+  </div>
 </div>
 <div id="toast"></div>
 <script>
@@ -531,6 +586,7 @@ body.editing #kebab-menu button.editor-only {{ display: block; }}
     var btn = document.getElementById('kebab-btn');
     var menu = document.getElementById('kebab-menu');
     var toast = document.getElementById('toast');
+    var aboutBackdrop = document.getElementById('about-backdrop');
     var isMac = navigator.platform.indexOf('Mac') === 0;
     document.getElementById('save-hint').textContent = isMac ? '⌘S' : 'Ctrl+S';
     var dirty = false, timer = null, toastTimer = null;
@@ -558,6 +614,7 @@ body.editing #kebab-menu button.editor-only {{ display: block; }}
         if (act === 'mode') {{ body.classList.toggle('editing'); if (editing()) ta.focus(); }}
         else if (act === 'toc') {{ body.classList.toggle('no-toc'); }}
         else if (act === 'save') {{ save(); }}
+        else if (act === 'about') {{ aboutBackdrop.classList.add('open'); }}
         labels(); kebab.classList.remove('open');
     }});
     ta.addEventListener('input', function() {{
@@ -576,6 +633,18 @@ body.editing #kebab-menu button.editor-only {{ display: block; }}
     document.addEventListener('keydown', function(e) {{
         if ((e.metaKey || e.ctrlKey) && e.key === 's') {{ e.preventDefault(); save(); }}
     }});
+
+    function closeAbout() {{ aboutBackdrop.classList.remove('open'); }}
+    document.getElementById('about-close').addEventListener('click', closeAbout);
+    // Click the backdrop to dismiss, but not the dialog itself.
+    aboutBackdrop.addEventListener('click', function(e) {{
+        if (e.target === aboutBackdrop) closeAbout();
+    }});
+    document.addEventListener('keydown', function(e) {{
+        if (e.key === 'Escape' && aboutBackdrop.classList.contains('open')) {{
+            e.stopPropagation(); closeAbout();
+        }}
+    }}, true);
 
     // Relative links to other documents ([x](./sub/b.md)) are resolved by Rust
     // against the *current* document's directory, then opened in this window.
@@ -814,12 +883,115 @@ document.querySelector('.sidebar').addEventListener('click', function(e) {{
         editor_text = editor_text,
         lang_attr = lang_attr,
         highlight_script = highlight_script,
-        mermaid_script = mermaid_script
+        mermaid_script = mermaid_script,
+        app_version = env!("CARGO_PKG_VERSION"),
+        lic_summary = lic_summary,
+        lic_rows = lic_rows
     )
+}
+
+/// Attribution for the About dialog: a one-line summary plus one row per
+/// component. Licences are counted so the summary stays true as deps change.
+fn build_licenses_html() -> (String, String) {
+    use crate::core::licenses::{BUNDLED, CRATES};
+    use std::collections::BTreeMap;
+
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    for (_, _, lic) in CRATES.iter() {
+        *counts.entry(lic).or_default() += 1;
+    }
+    for (_, _, lic, _, _) in BUNDLED.iter() {
+        *counts.entry(lic).or_default() += 1;
+    }
+    // Most common first; ties alphabetically, which BTreeMap order already gives.
+    let mut ranked: Vec<(&&str, &usize)> = counts.iter().collect();
+    ranked.sort_by(|a, b| b.1.cmp(a.1));
+    let top: Vec<String> = ranked
+        .iter()
+        .take(4)
+        .map(|(lic, n)| format!("{} ({})", lic, n))
+        .collect();
+    let summary = format!(
+        "{} components, each under its own licence — mostly {}.          Full terms ship in LICENSE and NOTICE.md.",
+        CRATES.len() + BUNDLED.len(),
+        top.join(", ")
+    );
+
+    let mut rows = String::from(
+        r#"<div class="lic lic-head"><span class="lic-name">Component</span><span class="lic-id">Licence</span></div>"#,
+    );
+    // Bundled assets first: they carry a copyright holder worth naming.
+    for (name, version, lic, holder, _) in BUNDLED.iter() {
+        rows.push_str(&format!(
+            r#"<div class="lic"><span class="lic-name">{} {} — {}</span><span class="lic-id">{}</span></div>"#,
+            html_escape_text(name),
+            html_escape_text(version),
+            html_escape_text(holder),
+            html_escape_text(lic)
+        ));
+    }
+    for (name, version, lic) in CRATES.iter() {
+        rows.push_str(&format!(
+            r#"<div class="lic"><span class="lic-name">{} {}</span><span class="lic-id">{}</span></div>"#,
+            html_escape_text(name),
+            html_escape_text(version),
+            html_escape_text(lic)
+        ));
+    }
+    (summary, rows)
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    fn about_page() -> String {
+        build_html("<p>x</p>", &[], "x", "", &ViewOptions::default())
+    }
+
+    #[test]
+    fn about_dialog_carries_the_copyright_and_menu_entry() {
+        let html = about_page();
+        assert!(html.contains(r#"<button data-act="about">About mdr</button>"#));
+        assert!(html.contains("Copyright &copy; 2027 Opusify IT Solutions Pvt. Ltd."));
+        // Upstream's notice must travel with the fork (MIT requires it).
+        assert!(html.contains("Copyright &copy; 2026 Clever Cloud"));
+        assert!(html.contains(&format!("mdr {}", env!("CARGO_PKG_VERSION"))));
+    }
+
+    #[test]
+    fn about_dialog_lists_every_component() {
+        use crate::core::licenses::{BUNDLED, CRATES};
+        let html = about_page();
+        // Each crate contributes one row; spot-check both ends of the list and
+        // the count in the summary so a truncated list cannot pass.
+        assert!(html.contains(&format!("{} components", CRATES.len() + BUNDLED.len())));
+        for (name, version, lic) in CRATES.iter() {
+            assert!(
+                html.contains(&format!(r#"<span class="lic-name">{} {}</span><span class="lic-id">{}</span>"#, name, version, lic)),
+                "missing row for {} {}",
+                name,
+                version
+            );
+        }
+        for (name, _, _, holder, _) in BUNDLED.iter() {
+            assert!(html.contains(holder), "missing holder for {}", name);
+        }
+        // Direct dependencies we must not silently drop attribution for.
+        for expected in ["comrak", "wry", "tao", "clap", "serde_json"] {
+            assert!(html.contains(&format!(r#"class="lic-name">{} "#, expected)), "missing {}", expected);
+        }
+    }
+
+    #[test]
+    fn generated_license_table_is_populated_and_licensed() {
+        use crate::core::licenses::CRATES;
+        assert!(CRATES.len() > 100, "suspiciously small: {}", CRATES.len());
+        for (name, _, lic) in CRATES.iter() {
+            assert!(!lic.is_empty() && *lic != "UNKNOWN", "no licence for {}", name);
+        }
+    }
+
     use super::*;
 
     #[test]

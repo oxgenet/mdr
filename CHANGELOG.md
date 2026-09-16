@@ -36,6 +36,10 @@ the modifications; original work (c) 2026 Clever Cloud, MIT.
   — or a later one — replaces the displayed document
 - **Relative Markdown links** (`[x](./sub/b.md)`, `../a.md`) open in the same
   window, resolved against the currently open document's directory
+- **About dialog** in the `⋮` menu: version, copyright, and the licence of
+  every third-party component. The list is generated from `cargo metadata` by
+  `scripts/gen-licenses.py` into `src/core/licenses.rs`, and CI fails when it
+  drifts from the dependency graph
 - `mdr --install-cli` symlinks the executable as `mdr` into `~/.local/bin`
   (`--prefix` for elsewhere), so the copy inside Mdr.app is reachable from a
   terminal without sudo or a hand-written symlink

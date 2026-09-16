@@ -53,6 +53,12 @@ jobs:
       - name: Build (tui only)
         run: cargo build --release --no-default-features --features tui-backend
 
+      # The About dialog's attribution list is generated; fail here rather than
+      # shipping a stale one.
+      - name: Check generated licence list is current
+        if: runner.os == 'Linux'
+        run: python scripts/gen-licenses.py --check
+
       - name: Run clippy
         run: cargo clippy -- -D warnings
         continue-on-error: true

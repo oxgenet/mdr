@@ -2,6 +2,7 @@ pub mod config;
 pub mod icon;
 pub mod image_validation;
 pub mod lang;
+pub mod licenses;
 pub mod markdown;
 #[cfg(feature = "svg")]
 pub mod page;

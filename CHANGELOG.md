@@ -26,9 +26,32 @@ the modifications; original work (c) 2026 Clever Cloud, MIT.
   IP literals / `*.local` on common ports; blocked or failed images become
   placeholders. `--no-remote-images`, `--no-local-http`, config keys
 - iOS document-based app (`ios/MdrApp`) and Share Extension; Windows CI screenshots
+- **macOS app bundle `Mdr.app`** (`macos/build-app.sh`): universal arm64+x86_64,
+  icon from `assets/logo-appicon.svg`, ad-hoc signed, declares the Markdown
+  document types so Finder can open files into it. Released as
+  `Mdr-X.Y.Z-macos-universal.dmg` / `.zip`; downloads need
+  `xattr -dr com.apple.quarantine` (not notarized)
+- **Empty window with drag & drop**: launching without a file (Finder/Dock, or
+  `mdr --new`) opens a drop target instead of failing. Dropping a Markdown file
+  — or a later one — replaces the displayed document
+- **Relative Markdown links** (`[x](./sub/b.md)`, `../a.md`) open in the same
+  window, resolved against the currently open document's directory
+- `mdr --install-cli` symlinks the executable as `mdr` into `~/.local/bin`
+  (`--prefix` for elsewhere), so the copy inside Mdr.app is reachable from a
+  terminal without sudo or a hand-written symlink
 
 ### Changed
 - Default Cargo features are now `webview-backend` only (egui/tui opt-in)
+- The webview backend now holds the open document (path, base directory,
+  watcher) as swappable state rather than binding it once at startup. Image
+  paths and live-preview updates therefore resolve against the **current**
+  document's directory, which is what makes document switching correct
+
+### Fixed
+- `-psn_0_*`, which LaunchServices can append to argv when an app is launched
+  from Finder, no longer makes argument parsing fail
+- `ffi::null_inputs_do_not_crash` no longer depends on the host's locale (an
+  empty document falls back to the OS language for `<html lang>`)
 - Package identity moved to the oxgenet namespace (Homebrew `oxgenet/tap/mdr`,
   Scoop bucket `oxgenet`, WinGet `oxgenet.mdr`); not published to crates.io
 

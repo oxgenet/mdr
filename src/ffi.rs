@@ -107,6 +107,11 @@ mod tests {
     #[test]
     fn null_inputs_do_not_crash() {
         let html = unsafe { take(mdr_render_page(std::ptr::null(), std::ptr::null(), std::ptr::null(), false, false)) };
-        assert!(html.contains("<html>"));
+        // An empty document has no language to detect, so `lang_tag` falls back
+        // to the OS locale: this is `<html>` under C/POSIX but `<html lang="ja">`
+        // on a Japanese machine. Match the open tag either way — what this test
+        // is about is that null pointers produce a page instead of a crash.
+        assert!(html.contains("<html"), "no <html> tag in: {}", &html[..html.len().min(200)]);
+        assert!(html.contains("</html>"));
     }
 }

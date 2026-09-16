@@ -158,6 +158,16 @@ Developer Program membership (USD 99/year).
 Note that `secrets` is not available in a step `if:`, so the workflow derives
 `steps.signing.outputs.{cert,notary}` from it first and gates on those.
 
+`./macos/setup-signing.sh` reports what is present locally and prints the exact
+commands and secret values for whatever is missing; `--notary` also creates the
+notarytool keychain profile.
+
+**A `Developer ID Application` certificate is a different type from
+`Apple Development`.** An Apple Development certificate — what an iOS device
+build uses — cannot be notarized, and having one does not mean the other
+exists. Only the Account Holder can create Developer ID certificates; a team
+Admin cannot.
+
 ### Homebrew Cask — blocked until the build is notarized
 
 A cask is **not** viable for an ad-hoc signed app any more:

@@ -10,9 +10,20 @@ enum MdrCore {
 
     static var version: String { take(mdr_version()) }
 
-    /// Full HTML page for a document. `lang` is an explicit tag or "" for auto.
-    static func renderPage(markdown: String, baseDir: String, lang: String = "") -> String {
-        take(mdr_render_page(markdown, baseDir, lang, false, false))
+    /// Full HTML page for a document, viewer/editor chrome included.
+    ///
+    /// `lang` is an explicit BCP 47 tag or "" to detect from the content.
+    /// `editor` and `toc` mirror `MdrCore.renderPage` on Android; the app only
+    /// ever renders in viewer mode (its own native chrome replaces the page's),
+    /// but the contract tests drive all four combinations.
+    static func renderPage(
+        markdown: String,
+        baseDir: String,
+        lang: String = "",
+        editor: Bool = false,
+        toc: Bool = false
+    ) -> String {
+        take(mdr_render_page(markdown, baseDir, lang, editor, toc))
     }
 
     /// JavaScript that updates an already loaded page from new markdown.

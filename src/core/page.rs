@@ -567,8 +567,8 @@ body.editing #kebab-menu button.editor-only {{ display: block; }}
     <button id="about-close" title="Close" aria-label="Close">&times;</button>
     <h2>mdr {app_version}</h2>
     <p class="about-desc">Markdown viewer/editor with Mermaid and CJK-aware rendering</p>
-    <p class="about-copy">Copyright &copy; 2027 Opusify IT Solutions Pvt. Ltd.</p>
-    <p class="about-copy">Copyright &copy; 2026 Clever Cloud &mdash; original mdr, MIT</p>
+    <p class="about-copy">{copyright}</p>
+    <p class="about-copy">{upstream_copyright}</p>
     <p class="about-desc">Released under the MIT License. A fork of
       <span class="about-url">github.com/CleverCloud/mdr</span>, not affiliated with
       Clever Cloud.</p>
@@ -885,6 +885,8 @@ document.querySelector('.sidebar').addEventListener('click', function(e) {{
         highlight_script = highlight_script,
         mermaid_script = mermaid_script,
         app_version = env!("CARGO_PKG_VERSION"),
+        copyright = html_escape_text(crate::core::licenses::COPYRIGHT),
+        upstream_copyright = html_escape_text(crate::core::licenses::UPSTREAM_COPYRIGHT),
         lic_summary = lic_summary,
         lic_rows = lic_rows
     )
@@ -951,9 +953,9 @@ mod tests {
     fn about_dialog_carries_the_copyright_and_menu_entry() {
         let html = about_page();
         assert!(html.contains(r#"<button data-act="about">About mdr</button>"#));
-        assert!(html.contains("Copyright &copy; 2027 Opusify IT Solutions Pvt. Ltd."));
+        assert!(html.contains(crate::core::licenses::COPYRIGHT));
         // Upstream's notice must travel with the fork (MIT requires it).
-        assert!(html.contains("Copyright &copy; 2026 Clever Cloud"));
+        assert!(html.contains(crate::core::licenses::UPSTREAM_COPYRIGHT));
         assert!(html.contains(&format!("mdr {}", env!("CARGO_PKG_VERSION"))));
     }
 

@@ -9,7 +9,7 @@
 </p>
 
 > **This is a fork.** The original mdr is by [Clever Cloud](https://github.com/CleverCloud/mdr) (MIT).
-> This fork (https://github.com/oxgenet/mdr) is maintained by oxge.net and is not affiliated
+> This fork (https://github.com/oxgenet/mdr) is maintained by Opusify IT Solutions Pvt. Ltd. and is not affiliated
 > with Clever Cloud. Package names are namespaced (`oxgenet/tap/mdr`, `oxgenet.mdr`, …) so they do not
 > collide with the original. Provenance and attribution: [NOTICE.md](NOTICE.md). License: [LICENSE](LICENSE).
 
@@ -433,7 +433,7 @@ git push origin v0.1.0
 
 ## License
 
-MIT. Copyright (c) 2026 Clever Cloud (original work) and Copyright (c) 2026 oxge.net
+MIT. Copyright (c) 2026 Clever Cloud (original work) and Copyright (c) 2027 Opusify IT Solutions Pvt. Ltd.
 (fork modifications). See [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md). Packagers: ship both files.
 
 ## Contributing

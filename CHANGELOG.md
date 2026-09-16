@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - Unreleased (oxgenet fork)
 
 First release of the oxgenet fork of mdr (https://github.com/oxgenet/mdr),
-forked from Clever Cloud's v0.3.2. Copyright (c) 2026 oxge.net for
+forked from Clever Cloud's v0.3.2. Copyright (c) 2027 Opusify IT Solutions Pvt. Ltd. for
 the modifications; original work (c) 2026 Clever Cloud, MIT.
 
 ### Added

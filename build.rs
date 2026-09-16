@@ -7,7 +7,7 @@ fn main() {
         res.set_icon("assets/mdr.ico");
         res.set("ProductName", "mdr (oxgenet fork)");
         res.set("FileDescription", "Markdown viewer/editor with Mermaid and CJK-aware rendering");
-        res.set("LegalCopyright", "Copyright (c) 2026 Clever Cloud; Copyright (c) 2026 oxge.net");
+        res.set("LegalCopyright", "Copyright (c) 2026 Clever Cloud; Copyright (c) 2027 Opusify IT Solutions Pvt. Ltd.");
         if let Err(e) = res.compile() {
             println!("cargo:warning=windows resource not embedded: {e}");
         }

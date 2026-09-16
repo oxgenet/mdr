@@ -4,6 +4,15 @@
 //! Regenerate with `python scripts/gen-licenses.py` after changing
 //! dependencies; CI checks this file is current.
 
+/// The fork's copyright holder, as shown in the About dialog. Also stated in
+/// LICENSE, NOTICE.md, Cargo.toml, build.rs and packaging/ — grep for it
+/// before changing, those are not generated from here.
+pub const COPYRIGHT: &str = "Copyright © 2027 Opusify IT Solutions Pvt. Ltd.";
+
+/// The upstream work this is a fork of. MIT requires its notice to travel
+/// with every copy, so it is shown alongside the fork's own line.
+pub const UPSTREAM_COPYRIGHT: &str = "Copyright © 2026 Clever Cloud — original mdr, MIT";
+
 /// Rust crates in mdr's dependency graph: (name, version, SPDX license).
 /// `static`, not `const`: a const this size is copied at every use site.
 /// Covers every backend and platform, so a given build may link fewer.

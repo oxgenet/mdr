@@ -5,7 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - Unreleased (oxgenet fork)
+## [0.4.1] - 2026-09-16
+
+### Added
+- **About dialog** in the `⋮` menu: version, copyright, and the licence of
+  every third-party component (404 crates plus the two bundled JS assets).
+  The list is generated from `cargo metadata` by `scripts/gen-licenses.py`
+  into `src/core/licenses.rs`, and CI fails when it drifts from the
+  dependency graph
+- Developer ID signing and notarization for `Mdr.app`, off unless the
+  `MACOS_SIGN_IDENTITY` / `MACOS_NOTARY_PROFILE` variables (repository
+  secrets in CI) are set; the ad-hoc path is unchanged without them
+- `macos/setup-signing.sh` reports what a notarized build still needs and
+  prints the portal steps, the build command and the CI secret values
+
+### Changed
+- The fork is now attributed to **Opusify IT Solutions Pvt. Ltd.**
+  (previously oxge.net) in LICENSE, NOTICE.md, Cargo.toml, the Windows
+  resource and every packaging manifest. Clever Cloud's notice is
+  unchanged — MIT requires it to travel with every copy
+- WinGet package identifier is now `opusify.mdr` (was `oxgenet.mdr`);
+  nothing was published under the old name. The Homebrew tap, Scoop
+  bucket and AUR package keep their `oxgenet` names, which belong to the
+  GitHub organisation hosting them
+
+### Fixed
+- Documented that a Homebrew Cask is **not** viable while the app is only
+  ad-hoc signed: Cask applies quarantine rather than removing it,
+  `--no-quarantine` was removed in Homebrew 4.7, and casks failing
+  Gatekeeper lost support on 2026-09-01 (Homebrew/brew#20755). A ready
+  cask waits in `packaging/homebrew/mdr-app.rb` for the notarized build
+
+## [0.4.0] - 2026-09-15 (oxgenet fork)
 
 First release of the oxgenet fork of mdr (https://github.com/oxgenet/mdr),
 forked from Clever Cloud's v0.3.2. Copyright (c) 2026 Opusify IT Solutions Pvt. Ltd. for
@@ -36,10 +67,6 @@ the modifications; original work (c) 2026 Clever Cloud, MIT.
   — or a later one — replaces the displayed document
 - **Relative Markdown links** (`[x](./sub/b.md)`, `../a.md`) open in the same
   window, resolved against the currently open document's directory
-- **About dialog** in the `⋮` menu: version, copyright, and the licence of
-  every third-party component. The list is generated from `cargo metadata` by
-  `scripts/gen-licenses.py` into `src/core/licenses.rs`, and CI fails when it
-  drifts from the dependency graph
 - `mdr --install-cli` symlinks the executable as `mdr` into `~/.local/bin`
   (`--prefix` for elsewhere), so the copy inside Mdr.app is reachable from a
   terminal without sudo or a hand-written symlink
@@ -57,7 +84,7 @@ the modifications; original work (c) 2026 Clever Cloud, MIT.
 - `ffi::null_inputs_do_not_crash` no longer depends on the host's locale (an
   empty document falls back to the OS language for `<html lang>`)
 - Package identity moved to the oxgenet namespace (Homebrew `oxgenet/tap/mdr`,
-  Scoop bucket `oxgenet`, WinGet `opusify.mdr`); not published to crates.io
+  Scoop bucket `oxgenet`, WinGet `oxgenet.mdr`); not published to crates.io
 
 ## [0.3.2] - 2026-06-22
 

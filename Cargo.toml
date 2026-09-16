@@ -1,6 +1,6 @@
 [package]
 name = "mdr"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 description = "Markdown viewer/editor with Mermaid and CJK-aware rendering (oxgenet fork of Clever Cloud's mdr)"
 license = "MIT"

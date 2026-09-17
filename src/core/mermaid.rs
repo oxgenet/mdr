@@ -32,9 +32,8 @@ pub fn render_mermaid_to_svg(source: &str) -> Result<String, String> {
     // Try with preprocessed source first (fixes common syntax issues)
     let preprocessed = preprocess_mermaid_source(source);
     let preprocessed_clone = preprocessed.clone();
-    match std::panic::catch_unwind(|| mermaid_rs_renderer::render(&preprocessed_clone)) {
-        Ok(Ok(svg)) => return Ok(svg),
-        _ => {}
+    if let Ok(Ok(svg)) = std::panic::catch_unwind(|| mermaid_rs_renderer::render(&preprocessed_clone)) {
+        return Ok(svg);
     }
     // Fall back to original source (in case preprocessing made things worse)
     let source = source.to_string();
@@ -70,7 +69,7 @@ fn suppress_stderr() -> StderrGuard {
         unsafe {
             let saved = libc::dup(2);
             if saved >= 0 {
-                let devnull = libc::open(b"/dev/null\0".as_ptr() as *const _, libc::O_WRONLY);
+                let devnull = libc::open(c"/dev/null".as_ptr(), libc::O_WRONLY);
                 if devnull >= 0 {
                     libc::dup2(devnull, 2);
                     libc::close(devnull);

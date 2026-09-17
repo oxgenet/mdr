@@ -28,7 +28,7 @@ targets:
         CFBundleName: mdr
         CFBundleDisplayName: mdr
         CFBundleIdentifier: net.oxge.mdr
-        CFBundleShortVersionString: "0.4.0"
+        CFBundleShortVersionString: "0.4.1"
         CFBundleVersion: "1"
         LSRequiresIPhoneOS: true
         UILaunchScreen: {}
@@ -87,6 +87,16 @@ targets:
         "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
         ARCHS: arm64
         SWIFT_OPTIMIZATION_LEVEL: "-O"
+      configs:
+        # `@testable import MdrApp` needs the app built with testability.
+        Debug:
+          ENABLE_TESTABILITY: "YES"
+          SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+    scheme:
+      testTargets:
+        - MdrAppTests
+        - MdrUITests
+      gatherCoverageData: true
   # Share Extension: "mdr" in any app's share sheet for text and files.
   # Saves into the App Group Inbox; the app imports it on next activation.
   MdrShare:
@@ -104,7 +114,7 @@ targets:
       properties:
         CFBundleName: mdr
         CFBundleDisplayName: mdr
-        CFBundleShortVersionString: "0.4.0"
+        CFBundleShortVersionString: "0.4.1"
         CFBundleVersion: "1"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
@@ -119,3 +129,57 @@ targets:
         ARCHS: arm64
         "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
         SWIFT_OPTIMIZATION_LEVEL: "-O"
+
+  # Contract tests over the Rust core, mirroring
+  # android/app/src/androidTest/.../MdrCoreInstrumentedTest.kt case for case.
+  # Hosted in MdrApp so the `mdr_*` symbols resolve out of the app binary
+  # (-bundle_loader): the core is linked once, not once per target.
+  #   xcodebuild -project ios/MdrApp/MdrApp.xcodeproj -scheme MdrApp \
+  #     -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' test
+  MdrAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ../MdrAppTests
+    dependencies:
+      - target: MdrApp
+    info:
+      path: ../MdrAppTests/Info.plist
+      properties:
+        CFBundleName: MdrAppTests
+        # The test bundle carries its own Info.plist, so it cannot read the
+        # app's CFBundleShortVersionString. Mirror it here; the version test
+        # compares this against what the linked Rust core reports, which is how
+        # a stale libmdr.a gets caught.
+        MdrHostShortVersion: "0.4.1"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.oxge.mdr.tests
+        # The tests call the C ABI directly, so they need the same bridging
+        # header the app uses.
+        SWIFT_OBJC_BRIDGING_HEADER: $(PROJECT_DIR)/../mdr_core.h
+        ARCHS: arm64
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
+        ENABLE_BITCODE: "NO"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MdrApp.app/MdrApp"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+  # End-to-end tests through the real UI, driven by `xcodebuild test`. These
+  # replace the NSLog greps ios/build-app.sh used to do; see that script.
+  MdrUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: ../MdrUITests
+    dependencies:
+      - target: MdrApp
+    info:
+      path: ../MdrUITests/Info.plist
+      properties:
+        CFBundleName: MdrUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.oxge.mdr.uitests
+        TEST_TARGET_NAME: MdrApp
+        ARCHS: arm64
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64

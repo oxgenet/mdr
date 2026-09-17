@@ -11,6 +11,8 @@ The whole resolve graph is walked, not just the default feature set, so the
 list covers every backend and platform. That over-includes crates a particular
 build does not link — safe for attribution, where omitting one is the failure
 that matters.
+
+Needs Python 3.7+ (subprocess capture_output). macOS system python3 is 3.6.
 """
 import json
 import subprocess
@@ -36,8 +38,13 @@ BUNDLED = [
 
 
 def crates():
+    # --all-features matters: without it `cargo metadata` resolves the default
+    # feature set only, which is the webview backend. Every egui and tui
+    # dependency — eframe, egui_commonmark, syntect, ratatui, crossterm, ureq
+    # and their trees — would then be missing from a list whose whole job is to
+    # credit them. `cargo build --features egui-backend` links them all.
     meta = json.loads(subprocess.run(
-        ["cargo", "metadata", "--format-version", "1"],
+        ["cargo", "metadata", "--format-version", "1", "--all-features"],
         cwd=ROOT, capture_output=True, text=True, check=True).stdout)
     pkgs = {p["id"]: p for p in meta["packages"]}
     nodes = {n["id"]: n for n in meta["resolve"]["nodes"]}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- DayNight so the system dark-mode setting reaches the WebView, which is
+         what drives the page's own prefers-color-scheme rules. -->
+    <style name="Theme.Mdr" parent="@android:style/Theme.DeviceDefault.DayNight" />
+</resources>

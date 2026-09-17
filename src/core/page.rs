@@ -23,6 +23,27 @@ pub fn lang_tag(content: &str, explicit: Option<&str>) -> String {
         .unwrap_or_default()
 }
 
+/// Render a complete page the way the native shells do: parse the markdown,
+/// inline images relative to `base_dir`, extract the TOC and resolve the
+/// document language.
+///
+/// Both [`crate::ffi`] (the C ABI the iOS shell links) and the Android JNI
+/// bridge call this, so the two platforms cannot drift apart.
+pub fn render_page(
+    markdown: &str,
+    base_dir: &std::path::Path,
+    lang: Option<&str>,
+    editor: bool,
+    toc_on: bool,
+) -> String {
+    let html = parse_markdown(markdown);
+    let html = resolve_local_images(&html, base_dir);
+    let entries = toc::extract_toc(markdown);
+    let tag = lang_tag(markdown, lang);
+    let opts = ViewOptions { editor, toc: toc_on, lang: lang.map(String::from) };
+    build_html(&html, &entries, markdown, &tag, &opts)
+}
+
 /// Build the JS snippet that swaps in freshly rendered body + TOC and updates `lang`.
 pub fn render_update_js(content: &str, base_dir: &std::path::Path, explicit_lang: Option<&str>) -> String {
     let new_html = parse_markdown(content);
@@ -307,13 +328,12 @@ fn rasterize_svg_to_png_data_uri(
 
     // Reject files that aren't actually SVG (e.g. HTML pages saved with .svg extension)
     let trimmed = svg_data.trim_start();
-    if !trimmed.starts_with('<')
+    if (!trimmed.starts_with('<')
         || trimmed.starts_with("<!DOCTYPE html")
-        || trimmed.starts_with("<html")
+        || trimmed.starts_with("<html"))
+        && !trimmed.contains("<svg")
     {
-        if !trimmed.contains("<svg") {
-            return Err("File is not a valid SVG (possibly an HTML page)".into());
-        }
+        return Err("File is not a valid SVG (possibly an HTML page)".into());
     }
 
     // Max pixel dimension to avoid memory issues
@@ -327,8 +347,7 @@ fn rasterize_svg_to_png_data_uri(
         Arc::new(db)
     });
 
-    let mut options = usvg::Options::default();
-    options.fontdb = Arc::clone(fontdb);
+    let options = usvg::Options { fontdb: Arc::clone(fontdb), ..Default::default() };
     let tree = usvg::Tree::from_str(&svg_data, &options)?;
     let size = tree.size();
     let svg_w = size.width();
@@ -1031,6 +1050,8 @@ mod tests {
 
     #[test]
     fn remote_images_follow_policy() {
+        // `urlpolicy::tests::switches` flips the same process-global policy.
+        let _guard = crate::core::urlpolicy::lock_policy_for_test();
         let html = r#"<p><img src="https://example.com/a.png" alt="a"><img src="http://192.168.1.5/b.png" alt="b"><img src="http://example.com/c.png" alt="c"></p>"#;
         let out = resolve_local_images(html, std::path::Path::new("."));
         assert!(out.contains(r#"src="https://example.com/a.png""#));

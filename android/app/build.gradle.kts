@@ -5,8 +5,20 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-/** ABI → Rust target. x86_64 is here so the CI emulator can run the tests. */
-val rustAbis = listOf("arm64-v8a", "x86_64")
+/**
+ * ABIs to cross-compile and package. Both by default: `arm64-v8a` for phones,
+ * `x86_64` so an emulator can run the instrumented tests.
+ *
+ * Narrow it with `-PrustAbis=x86_64` when only one is needed. The CI emulator
+ * job does exactly that — it installs a single Rust target, so building the
+ * other ABI would fail before a test ever ran.
+ */
+val rustAbis: List<String> =
+    (project.findProperty("rustAbis") as String?)
+        ?.split(",")
+        ?.map { it.trim() }
+        ?.filter { it.isNotEmpty() }
+        ?: listOf("arm64-v8a", "x86_64")
 
 /** Repository root — the Cargo workspace lives one level above `android/`. */
 val repoRoot: File = rootProject.projectDir.parentFile

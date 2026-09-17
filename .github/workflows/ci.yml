@@ -157,6 +157,9 @@ jobs:
 
       # MdrCoreInstrumentedTest asserts the same contract as src/ffi.rs, but
       # through JNI on a real Android runtime.
+      #
+      # -PrustAbis=x86_64 matters: only that Rust target is installed above, so
+      # the default two-ABI build would fail before the emulator was even used.
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -164,7 +167,7 @@ jobs:
           arch: x86_64
           target: google_apis
           working-directory: android
-          script: ./gradlew :app:connectedDebugAndroidTest --no-daemon
+          script: ./gradlew :app:connectedDebugAndroidTest -PrustAbis=x86_64 --no-daemon
 
       - name: Upload test report
         if: always()

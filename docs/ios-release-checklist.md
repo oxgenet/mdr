@@ -71,6 +71,10 @@ Group.
 
 ## 3. Paid Applications Agreement and banking (person, can take days)
 
+> **Confirmed active on 2026-09-18.** Nothing here is blocking; the section is
+> kept because it is the thing to re-check whenever purchases stop working.
+
+
 **App Store Connect → Business (Agreements, Tax, and Banking).** No in-app
 purchase can be created, let alone sold, until the **Paid Applications**
 agreement is active with banking and tax details completed. On Android this
@@ -84,10 +88,13 @@ right now."*
 
 App Store Connect → **Apps → +** → New App, bundle ID `net.oxge.mdr`.
 
-**App Store names are globally unique**, unlike Google Play. The Play listing
-is "Markdown Reader — mdr". If that exact name is taken, stop and agree a name
-rather than picking one ad hoc — the two stores should not drift apart by
-accident.
+**App Store names are globally unique**, unlike Google Play.
+
+> **Registered on 2026-09-18 as `Markdown Reader`.** Note this is *not*
+> identical to the Play listing, which is "Markdown Reader — mdr". Deliberate
+> as far as anyone here knows, but worth keeping in mind when writing store
+> copy or comparing the two listings — and worth making the subtitle carry
+> "mdr" so the brand is not lost on the App Store side.
 
 Then **Features → In-App Purchases → +**, all three **Consumable**, with IDs
 matching `SupportCatalogue` exactly. A typo shows up at runtime only as
@@ -192,6 +199,8 @@ account on the device under Settings → App Store → Sandbox Account.
 | Build number, export compliance, distribution signing | done and verified in an exported .ipa |
 | Static linking of the Rust core | **fixed** — was silently absent from device builds |
 | App Group `group.net.oxge.mdr` | **not created — §2, blocks the archive** |
-| Paid Applications agreement + banking | **unknown, needs checking — §3** |
-| App record + 3 in-app purchases | **not started — §4** |
+| Paid Applications agreement + banking | active (confirmed 2026-09-18) |
+| App record `Markdown Reader` (net.oxge.mdr) | created 2026-09-18 |
+| App Store Connect API key | created; Key ID `C78543TCSU` |
+| 3 in-app purchases | **not created — §4** |
 | First TestFlight upload | **blocked on §2** |

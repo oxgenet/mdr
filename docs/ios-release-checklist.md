@@ -6,7 +6,17 @@ do. The code is in place and tested; what is left is account and portal work.
 
 ---
 
-## 0. Where this stopped, and why
+## 0. Where this got to
+
+**Build 111 is on TestFlight** (uploaded 2026-09-18, processed `VALID`,
+internal state `IN_BETA_TESTING`). The three purchases are `READY_TO_SUBMIT`.
+What is left is in §8: nothing has been run on a real device, and the purchase
+path has not been exercised locally.
+
+The rest of this section is kept because it is the failure a future session
+would otherwise hit again.
+
+## 0b. Where the first attempt stopped, and why
 
 `ios/build-device.sh` was run for the first time on 2026-09-18. It gets as far
 as the archive and then fails on **one** thing:
@@ -115,6 +125,19 @@ rather than letting auto-conversion produce oddities.
 In-app purchases are reviewed **with a build**, so submit them alongside the
 first TestFlight submission for review.
 
+> **Created via the API on 2026-09-18 — all three are `READY_TO_SUBMIT`.**
+> App ID `6813458477`. Each has en-US + ja localisations, a ¥ price with JPN
+> as base territory, availability in all 175 territories, a review note
+> explaining that nothing is unlocked, and the review screenshot in
+> `ios/store/iap-review-screenshot.png`.
+>
+> Getting to `READY_TO_SUBMIT` needed four things, not two — a purchase sits
+> in `MISSING_METADATA`, and StoreKit refuses to return it, until it has
+> localisations, a price schedule, a review screenshot **and** an
+> availability record. The availability one is easy to miss: it is a separate
+> `inAppPurchaseAvailabilities` resource and its absence looks identical to
+> everything else being wrong.
+
 ## 5. Build and upload (machine)
 
 ```bash
@@ -198,9 +221,12 @@ account on the device under Settings → App Store → Sandbox Account.
 | English + Japanese strings | done |
 | Build number, export compliance, distribution signing | done and verified in an exported .ipa |
 | Static linking of the Rust core | **fixed** — was silently absent from device builds |
-| App Group `group.net.oxge.mdr` | **not created — §2, blocks the archive** |
 | Paid Applications agreement + banking | active (confirmed 2026-09-18) |
 | App record `Markdown Reader` (net.oxge.mdr) | created 2026-09-18 |
 | App Store Connect API key | created; Key ID `C78543TCSU` |
-| 3 in-app purchases | **not created — §4** |
-| First TestFlight upload | **blocked on §2** |
+| App Group `group.net.oxge.mdr` | bound to both App IDs 2026-09-18 |
+| 3 in-app purchases | created, `READY_TO_SUBMIT` |
+| First TestFlight upload | **build 111 uploaded, processed `VALID`** |
+| Build 111 beta state | internal `IN_BETA_TESTING`, external `READY_FOR_BETA_SUBMISSION` |
+| Purchase path verified locally | **no — skips under xcodebuild, see §6** |
+| Anything run on real hardware | **no — share extension and rendering still untested** |

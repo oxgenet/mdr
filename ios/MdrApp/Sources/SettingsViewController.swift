@@ -92,7 +92,10 @@ final class SettingsViewController: UITableViewController {
             case .loading, .unavailable, .thanks: return 1
             }
         case .about:
-            return 1
+            // Version, our copyright, and the upstream notice. The third is
+            // required: mdr is a fork and MIT obliges us to carry the original
+            // copyright, which the desktop About dialog already does.
+            return 3
         case .none:
             return 0
         }
@@ -150,10 +153,23 @@ final class SettingsViewController: UITableViewController {
             }
 
         case .about:
-            let version = MdrCore.version.isEmpty ? "—" : MdrCore.version
-            content.text = String(format: NSLocalizedString("about_version", comment: "Version %@"), version)
             cell.selectionStyle = .none
-            cell.accessibilityIdentifier = "aboutVersion"
+            switch indexPath.row {
+            case 0:
+                let version = MdrCore.version.isEmpty ? "—" : MdrCore.version
+                content.text = String(format: NSLocalizedString("about_version", comment: "Version %@"), version)
+                cell.accessibilityIdentifier = "aboutVersion"
+            case 1:
+                content.text = NSLocalizedString("about_copyright", comment: "")
+                content.textProperties.font = .preferredFont(forTextStyle: .footnote)
+                content.textProperties.color = .secondaryLabel
+                cell.accessibilityIdentifier = "aboutCopyright"
+            default:
+                content.text = NSLocalizedString("about_upstream", comment: "")
+                content.textProperties.font = .preferredFont(forTextStyle: .footnote)
+                content.textProperties.color = .secondaryLabel
+                cell.accessibilityIdentifier = "aboutUpstream"
+            }
 
         case .none:
             break

@@ -25,6 +25,8 @@
 "section_about" = "このアプリについて";
 "about_version" = "バージョン %@";
 "about_blurb" = "Mermaid 図と CJK 対応の描画を備えた軽量な Markdown リーダーです。MIT ライセンスのオープンソースです。";
+"about_copyright" = "© 2026 Opusify IT Solutions Pvt. Ltd.";
+"about_upstream" = "Clever Cloud による mdr を基にしています（原著作、MIT）。";
 
 /* ビューア */
 "action_settings" = "設定";

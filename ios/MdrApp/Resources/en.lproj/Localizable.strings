@@ -27,6 +27,11 @@
 "section_about" = "About";
 "about_version" = "Version %@";
 "about_blurb" = "A fast Markdown reader with Mermaid diagrams and CJK-aware rendering. Open source, MIT licensed.";
+/* Attribution. Mirrors COPYRIGHT / UPSTREAM_COPYRIGHT in src/core/licenses.rs,
+   which is what the desktop About dialog shows. MIT requires the upstream
+   notice to be carried, so this is not optional decoration. */
+"about_copyright" = "© 2026 Opusify IT Solutions Pvt. Ltd.";
+"about_upstream" = "Based on mdr by Clever Cloud — original work, MIT.";
 
 /* Viewer */
 "action_settings" = "Settings";

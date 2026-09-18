@@ -61,6 +61,25 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual("aboutVersion", cell(vc, 2, 0).accessibilityIdentifier, "about line missing")
     }
 
+    func testAboutCarriesTheUpstreamAttribution() {
+        // mdr is a fork of Clever Cloud's mdr and MIT obliges us to carry the
+        // original copyright. The desktop About dialog does; this is the
+        // mobile equivalent, and dropping it would be a licence problem rather
+        // than a cosmetic one.
+        let vc = makeScreen()
+        XCTAssertEqual(3, vc.tableView(vc.tableView, numberOfRowsInSection: 2))
+
+        let ours = (cell(vc, 2, 1).contentConfiguration as? UIListContentConfiguration)?.text ?? ""
+        XCTAssertTrue(ours.contains("Opusify"), "our own copyright line is missing, got '\(ours)'")
+
+        let upstream = (cell(vc, 2, 2).contentConfiguration as? UIListContentConfiguration)?.text ?? ""
+        XCTAssertTrue(
+            upstream.contains("Clever Cloud"),
+            "the upstream attribution is missing from About, got '\(upstream)'"
+        )
+        XCTAssertEqual("aboutUpstream", cell(vc, 2, 2).accessibilityIdentifier)
+    }
+
     func testTheAboutLineShowsTheLoadedCoreVersion() {
         let vc = makeScreen()
         let content = cell(vc, 2, 0).contentConfiguration as? UIListContentConfiguration

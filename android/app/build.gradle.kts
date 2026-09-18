@@ -51,6 +51,20 @@ val buildRustCore by tasks.registering(Exec::class) {
     onlyIf { !project.hasProperty("skipRustBuild") }
 }
 
+/**
+ * Upload-key details for a Play release, supplied from outside the repository:
+ * `~/.gradle/gradle.properties` or the environment. A keystore must never be
+ * committed — losing control of it means losing control of the listing.
+ *
+ * All four are absent on a normal dev machine and in CI, in which case the
+ * release build simply goes unsigned and `assembleDebug` is unaffected.
+ */
+val keystorePath: String? = (findProperty("mdrKeystore") as String?) ?: System.getenv("MDR_KEYSTORE")
+val keystorePassword: String? = (findProperty("mdrKeystorePassword") as String?) ?: System.getenv("MDR_KEYSTORE_PASSWORD")
+val keyAliasName: String? = (findProperty("mdrKeyAlias") as String?) ?: System.getenv("MDR_KEY_ALIAS")
+val keyPassword: String? = (findProperty("mdrKeyPassword") as String?) ?: System.getenv("MDR_KEY_PASSWORD")
+val hasUploadKey = keystorePath != null && file(keystorePath).exists()
+
 android {
     namespace = "net.oxge.mdr"
     compileSdk = 36
@@ -60,15 +74,29 @@ android {
         applicationId = "net.oxge.mdr"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
+        // Play rejects an upload that reuses a version code, so this has to
+        // move on every release: pass -PversionCode=N from the release script.
+        versionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
         versionName = "0.4.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += rustAbis }
     }
 
+    if (hasUploadKey) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(keystorePath!!)
+                storePassword = keystorePassword
+                keyAlias = keyAliasName
+                this.keyPassword = keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasUploadKey) signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -101,6 +129,10 @@ android {
 tasks.named("preBuild") { dependsOn(buildRustCore) }
 
 dependencies {
+    // Google Play's payments policy requires in-app support payments to go
+    // through Play Billing; linking out to an external tip page risks removal.
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
+
     testImplementation("junit:junit:4.13.2")
 
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

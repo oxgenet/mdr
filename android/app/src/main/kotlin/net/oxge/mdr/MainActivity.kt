@@ -24,7 +24,12 @@ import org.json.JSONArray
 class MainActivity : Activity() {
 
     private lateinit var webView: WebView
+    private lateinit var prefs: Prefs
     private var document: MarkdownDocument? = null
+
+    /** Preferences the current page was rendered with, so onResume can tell
+     *  whether a trip to Settings actually changed anything. */
+    private var renderedWith: Pair<Boolean, String>? = null
 
     private val openDocument =
         object {
@@ -46,8 +51,17 @@ class MainActivity : Activity() {
             settings.allowContentAccess = false
         }
         setContentView(webView)
+        prefs = Prefs.from(this)
         handleIntent(intent)
         if (document == null) showWelcome()
+    }
+
+    /** Re-render if Settings changed something since this page was drawn. */
+    override fun onResume() {
+        super.onResume()
+        val current = prefs.showToc to prefs.lang
+        val doc = document
+        if (doc != null && renderedWith != null && renderedWith != current) show(doc)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -96,7 +110,8 @@ class MainActivity : Activity() {
     private fun show(doc: MarkdownDocument) {
         document = doc
         title = doc.name
-        val html = MdrCore.renderPage(doc.text, doc.baseDir)
+        renderedWith = prefs.showToc to prefs.lang
+        val html = MdrCore.renderPage(doc.text, doc.baseDir, lang = prefs.lang, toc = prefs.showToc)
         if (html.isEmpty()) {
             // Only happens when libmdr.so is missing for this device's ABI.
             // Say so instead of showing a blank screen.
@@ -144,6 +159,8 @@ class MainActivity : Activity() {
             .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
         menu.add(0, ID_SHARE, 3, R.string.action_share)
             .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+        menu.add(0, ID_SETTINGS, 4, R.string.action_settings)
+            .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
         return true
     }
 
@@ -151,6 +168,7 @@ class MainActivity : Activity() {
         ID_OPEN -> { openDocument.launch(); true }
         ID_TOC -> { showToc(); true }
         ID_SHARE -> { shareText(); true }
+        ID_SETTINGS -> { startActivity(Intent(this, SettingsActivity::class.java)); true }
         else -> super.onOptionsItemSelected(item)
     }
 
@@ -209,6 +227,7 @@ class MainActivity : Activity() {
         private const val ID_SEARCH = 2
         private const val ID_TOC = 3
         private const val ID_SHARE = 4
+        private const val ID_SETTINGS = 5
 
         private val WELCOME_MD = """
             # mdr

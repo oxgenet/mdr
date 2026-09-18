@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- The launcher icon is derived from the same 1024px artwork the iOS
+         bundle uses, so both stores show one mark. It is a legacy square icon:
+         a proper adaptive icon needs separate foreground/background layers with
+         a 66% safe zone, which is a design job rather than a resize. -->
     <application
         android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Mdr">
@@ -39,5 +44,11 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="@string/settings_title"
+            android:parentActivityName=".MainActivity" />
     </application>
 </manifest>

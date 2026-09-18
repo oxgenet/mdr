@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_open">開く</string>
+    <string name="action_toc">目次</string>
+    <string name="action_search">検索</string>
+    <string name="action_share">共有</string>
+    <string name="action_settings">設定</string>
+    <string name="search_hint">文書内を検索</string>
+    <string name="no_headings">この文書には見出しがありません</string>
+    <string name="open_failed">この文書を開けませんでした</string>
+    <string name="welcome">Markdown ファイルを開いて読み始めてください。</string>
+
+    <!-- 設定 -->
+    <string name="settings_title">設定</string>
+    <string name="section_reading">表示</string>
+    <string name="pref_toc">目次を表示する</string>
+    <string name="pref_toc_summary">文書を開いたときに見出しのサイドバーを表示します。</string>
+    <string name="pref_lang">文書の言語</string>
+    <string name="pref_lang_summary">CJK テキストの字形とフォントを選びます。文書のフロントマターが指定されている場合はそちらが優先されます。</string>
+    <string name="lang_auto">自動判別</string>
+    <string name="lang_ja">日本語</string>
+    <string name="lang_zh_hans">中国語（簡体字）</string>
+    <string name="lang_zh_hant">中国語（繁体字）</string>
+    <string name="lang_ko">韓国語</string>
+
+    <!-- 開発者を応援する -->
+    <string name="section_support">開発者を応援する ☕</string>
+    <string name="support_blurb">Markdown Reader を気に入っていただけたら、今後の開発をコーヒー代で応援できます。</string>
+    <string name="support_loading">読み込み中…</string>
+    <string name="support_unavailable">現在この端末ではアプリ内での応援をご利用いただけません。</string>
+    <string name="support_thanks">mdr を応援していただきありがとうございます！ ☕</string>
+
+    <!-- アプリについて -->
+    <string name="section_about">このアプリについて</string>
+    <string name="about_version">バージョン %1$s</string>
+    <string name="about_blurb">Mermaid 図と CJK 対応の描画を備えた軽量な Markdown リーダーです。MIT ライセンスのオープンソースです。</string>
+</resources>

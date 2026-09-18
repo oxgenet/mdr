@@ -1,0 +1,35 @@
+/* mdr — iOS シェル、日本語。
+   android/app/src/main/res/values-ja/strings.xml と同じ文言を使う。 */
+
+/* 設定 */
+"settings_title" = "設定";
+"section_reading" = "表示";
+"pref_toc" = "目次を表示する";
+"pref_toc_summary" = "文書を開いたときに見出しのサイドバーを表示します。";
+"pref_lang" = "文書の言語";
+"pref_lang_summary" = "CJK テキストの字形とフォントを選びます。文書のフロントマターが指定されている場合はそちらが優先されます。";
+"lang_auto" = "自動判別";
+"lang_ja" = "日本語";
+"lang_zh_hans" = "中国語（簡体字）";
+"lang_zh_hant" = "中国語（繁体字）";
+"lang_ko" = "韓国語";
+
+/* 開発者を応援する */
+"section_support" = "開発者を応援する ☕";
+"support_blurb" = "Markdown Reader を気に入っていただけたら、今後の開発をコーヒー代で応援できます。";
+"support_loading" = "読み込み中…";
+"support_unavailable" = "現在この端末ではアプリ内での応援をご利用いただけません。";
+"support_thanks" = "mdr を応援していただきありがとうございます！ ☕";
+
+/* アプリについて */
+"section_about" = "このアプリについて";
+"about_version" = "バージョン %@";
+"about_blurb" = "Mermaid 図と CJK 対応の描画を備えた軽量な Markdown リーダーです。MIT ライセンスのオープンソースです。";
+
+/* ビューア */
+"action_settings" = "設定";
+"action_toc" = "目次";
+"action_search" = "検索";
+"action_share" = "共有";
+"search_hint" = "文書内を検索";
+"no_headings" = "この文書には見出しがありません";

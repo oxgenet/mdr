@@ -3,6 +3,9 @@
 name: MdrApp
 options:
   bundleIdPrefix: net.oxge
+  # Scheme file references are written relative to this. The default "../../"
+  # would resolve Mdr.storekit to the repo root; it sits next to the project.
+  schemePathPrefix: "../"
   deploymentTarget:
     iOS: "16.0"
   createIntermediateGroups: true
@@ -15,6 +18,12 @@ settings:
     CODE_SIGNING_ALLOWED: "NO"
     CODE_SIGN_IDENTITY: ""
     DEVELOPMENT_TEAM: ""
+    # The TestFlight build number. App Store Connect rejects a build number it
+    # has already seen, so a second upload of "1" fails. Both the app and the
+    # Share Extension read CFBundleVersion from this one setting, which is what
+    # keeps them in lockstep — a mismatch is itself a rejection. ios/build-device.sh
+    # overrides it per archive (commit count, or MDR_BUILD_NUMBER).
+    CURRENT_PROJECT_VERSION: "1"
 targets:
   MdrApp:
     type: application
@@ -22,6 +31,10 @@ targets:
     sources:
       - path: Sources
       - path: Assets.xcassets
+      - path: Resources
+      # Bundled so SKTestSession can load it by name from the test run, and so
+      # the scheme can point at it for manual runs in the simulator.
+      - path: Mdr.storekit
     info:
       path: Info.plist
       properties:
@@ -29,7 +42,12 @@ targets:
         CFBundleDisplayName: mdr
         CFBundleIdentifier: net.oxge.mdr
         CFBundleShortVersionString: "0.4.1"
-        CFBundleVersion: "1"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Without this, every upload sits in "Missing Compliance" until someone
+        # answers the export question by hand in App Store Connect. mdr does no
+        # encryption of its own; it only ever speaks HTTPS, which is exempt.
+        ITSAppUsesNonExemptEncryption: false
+        CFBundleDevelopmentRegion: en
         LSRequiresIPhoneOS: true
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
@@ -93,10 +111,18 @@ targets:
           ENABLE_TESTABILITY: "YES"
           SWIFT_OPTIMIZATION_LEVEL: "-Onone"
     scheme:
-      testTargets:
-        - MdrAppTests
-        - MdrUITests
+      # The test plan is what carries the StoreKit configuration into the
+      # *test* action; XcodeGen's `storeKitConfiguration` only reaches the run
+      # action, which is why the two are set separately.
+      testPlans:
+        - path: MdrApp.xctestplan
+          defaultPlan: true
       gatherCoverageData: true
+      storeKitConfiguration: Mdr.storekit
+      # Local StoreKit testing: the tip jar can be exercised in the simulator,
+      # and in the test run, without anything existing in App Store Connect.
+      # The tests drive SKTestSession directly, which does not depend on this;
+      # this is what makes a manual Run show the three tiers too.
   # Share Extension: "mdr" in any app's share sheet for text and files.
   # Saves into the App Group Inbox; the app imports it on next activation.
   MdrShare:
@@ -115,7 +141,7 @@ targets:
         CFBundleName: mdr
         CFBundleDisplayName: mdr
         CFBundleShortVersionString: "0.4.1"
-        CFBundleVersion: "1"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
@@ -141,8 +167,16 @@ targets:
     platform: iOS
     sources:
       - path: ../MdrAppTests
+      # SKTestSession(configurationFileNamed:) looks in the bundle of the code
+      # that calls it, which is the test bundle — not the app's. The app target
+      # gets its own copy so a manual Run shows the tiers too.
+      - path: Mdr.storekit
     dependencies:
       - target: MdrApp
+      # SKTestSession lives in StoreKitTest, not StoreKit. It serves
+      # Mdr.storekit locally, which is how the purchase path is covered
+      # without anything existing in App Store Connect.
+      - sdk: StoreKitTest.framework
     info:
       path: ../MdrAppTests/Info.plist
       properties:

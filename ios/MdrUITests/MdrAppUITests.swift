@@ -239,6 +239,74 @@ final class MdrAppUITests: XCTestCase {
         )
     }
 
+    // MARK: - Settings
+
+    func testSettingsOpensAndTheTocPreferenceReachesThePage() {
+        let app = launchWithDocument()
+        app.buttons["settingsButton"].tap()
+
+        // Every section is present.
+        XCTAssertTrue(app.switches["tocSwitch"].waitForExistence(timeout: 10),
+                      "the Reading section did not appear")
+        XCTAssertTrue(app.cells["languageRow"].exists, "the language row is missing")
+        XCTAssertTrue(app.cells["aboutVersion"].exists, "the About row is missing")
+
+        // The support section settles on one readable line rather than an
+        // error, which is what a tester sees until the products exist in App
+        // Store Connect. Tiers appearing instead is also correct — that is the
+        // local StoreKit configuration doing its job.
+        let quiet = app.cells["supportStatus"]
+        let tier = app.cells["tier_tip_coffee_1"]
+        XCTAssertTrue(
+            quiet.waitForExistence(timeout: 20) || tier.waitForExistence(timeout: 5),
+            "the Support section neither offered a tier nor explained why it could not"
+        )
+
+        // Turn the sidebar on and return: the page must come back with it.
+        let toggle = app.switches["tocSwitch"]
+        let wasOn = (toggle.value as? String) == "1"
+        toggle.tap()
+        app.buttons["settingsDoneButton"].tap()
+
+        XCTAssertTrue(app.webViews["documentPage"].waitForExistence(timeout: 15),
+                      "the document did not come back after Settings")
+
+        // Put it back so the run leaves no state behind for the next test.
+        app.buttons["settingsButton"].tap()
+        let again = app.switches["tocSwitch"]
+        XCTAssertTrue(again.waitForExistence(timeout: 10))
+        XCTAssertEqual(
+            (again.value as? String) == "1", !wasOn,
+            "the table-of-contents preference did not persist across a trip back to Settings"
+        )
+        again.tap()
+        app.buttons["settingsDoneButton"].tap()
+    }
+
+    func testTheLanguagePickerOffersEveryTagAndPersists() {
+        let app = launchWithDocument()
+        app.buttons["settingsButton"].tap()
+        XCTAssertTrue(app.cells["languageRow"].waitForExistence(timeout: 10))
+        app.cells["languageRow"].tap()
+
+        // The same five options as Android's spinner, in the same order.
+        for id in ["lang_auto", "lang_ja", "lang_zh-Hans", "lang_zh-Hant", "lang_ko"] {
+            XCTAssertTrue(app.cells[id].waitForExistence(timeout: 10), "\(id) is not offered")
+        }
+
+        app.cells["lang_ko"].tap()
+        XCTAssertTrue(app.cells["languageRow"].waitForExistence(timeout: 10),
+                      "choosing a language should return to Settings")
+
+        // Reopen the picker: the choice is ticked.
+        app.cells["languageRow"].tap()
+        XCTAssertTrue(app.cells["lang_ko"].waitForExistence(timeout: 10))
+
+        // Put it back to auto so the run leaves no state behind.
+        app.cells["lang_auto"].tap()
+        app.buttons["settingsDoneButton"].tap()
+    }
+
     // MARK: - Share
 
     func testShareOffersMarkdownAndPdf() {

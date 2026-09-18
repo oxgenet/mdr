@@ -15,8 +15,17 @@ settings:
     SWIFT_VERSION: "5.9"
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
     TARGETED_DEVICE_FAMILY: "1,2"
-    CODE_SIGNING_ALLOWED: "NO"
-    CODE_SIGN_IDENTITY: ""
+    # Simulator builds and the test suites run unsigned; device builds must
+    # sign normally. Scoping this to the simulator SDK is what lets automatic
+    # signing pick Apple Development for a device build and Apple Distribution
+    # for a Release archive. It used to be an unconditional "NO" plus an empty
+    # CODE_SIGN_IDENTITY, which is why ios/build-device.sh had to force
+    # CODE_SIGN_IDENTITY=Apple Development back on — the wrong identity for an
+    # App Store archive, and the reason that override existed at all.
+    "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]": "NO"
+    "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": ""
+    CODE_SIGN_STYLE: Automatic
+    # Overridden per archive by ios/build-device.sh.
     DEVELOPMENT_TEAM: ""
     # The TestFlight build number. App Store Connect rejects a build number it
     # has already seen, so a second upload of "1" fails. Both the app and the
@@ -50,8 +59,12 @@ targets:
         CFBundleDevelopmentRegion: en
         LSRequiresIPhoneOS: true
         UILaunchScreen: {}
+        # An iPad build (TARGETED_DEVICE_FAMILY 1,2) that does not require full
+        # screen has to support all four, or the archive warns and App Store
+        # Connect can reject it. Upside-down was the missing one.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         UIApplicationSceneManifest:
@@ -97,9 +110,16 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: net.oxge.mdr
         SWIFT_OBJC_BRIDGING_HEADER: $(PROJECT_DIR)/../mdr_core.h
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        OTHER_LDFLAGS: ["-lmdr"]
-        "LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]": "$(PROJECT_DIR)/../../target/aarch64-apple-ios-sim/release"
-        "LIBRARY_SEARCH_PATHS[sdk=iphoneos*]": "$(PROJECT_DIR)/../../target/aarch64-apple-ios/release"
+        # The staticlib is named by full path, not found via -lmdr on a search
+        # path. Cargo's crate-type list gained `cdylib` for Android's
+        # System.loadLibrary, so `cargo build` now drops libmdr.dylib next to
+        # libmdr.a for *every* target, iOS included — and ld prefers a .dylib
+        # over a .a of the same name. The app was therefore linking
+        # /Users/<you>/mdr/target/.../libmdr.dylib by absolute path: fine in the
+        # simulator, which shares the Mac's filesystem, and a launch crash on any
+        # real device. Naming the archive leaves nothing to choose between.
+        "OTHER_LDFLAGS[sdk=iphonesimulator*]": "$(PROJECT_DIR)/../../target/aarch64-apple-ios-sim/release/libmdr.a"
+        "OTHER_LDFLAGS[sdk=iphoneos*]": "$(PROJECT_DIR)/../../target/aarch64-apple-ios/release/libmdr.a"
         ENABLE_BITCODE: "NO"
         # The Rust core is built for arm64 only (Apple Silicon simulator / devices)
         "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64

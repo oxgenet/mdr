@@ -1,0 +1,75 @@
+{
+  "appPolicies": {
+    "eula": "",
+    "policies": [
+      {
+        "locale": "en_US",
+        "policyText": "",
+        "policyURL": ""
+      }
+    ]
+  },
+  "identifier": "9C7B5E10-4F2A-4A3D-9E55-7C0B9A1D2E34",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "300",
+      "familyShareable": false,
+      "internalID": "A1000001",
+      "localizations": [
+        {
+          "description": "Buy the developer one coffee.",
+          "displayName": "One Coffee",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "tip_coffee_1",
+      "referenceName": "One Coffee",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "600",
+      "familyShareable": false,
+      "internalID": "A1000002",
+      "localizations": [
+        {
+          "description": "Buy the developer two coffees.",
+          "displayName": "Two Coffees",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "tip_coffee_2",
+      "referenceName": "Two Coffees",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "1000",
+      "familyShareable": false,
+      "internalID": "A1000003",
+      "localizations": [
+        {
+          "description": "Give mdr's development a boost.",
+          "displayName": "Give Development a Boost",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "tip_boost",
+      "referenceName": "Give Development a Boost",
+      "type": "Consumable"
+    }
+  ],
+  "settings": {
+    "_applicationInternalID": "6740000000",
+    "_developerTeamID": "0000000000",
+    "_failTransactionsEnabled": false,
+    "_lastSynchronizedDate": 0,
+    "_locale": "en_US",
+    "_storefront": "USA",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [],
+  "version": {
+    "major": 4,
+    "minor": 0
+  }
+}

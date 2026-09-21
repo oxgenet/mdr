@@ -1,11 +1,11 @@
 screen: 1024x768
-captured en-image (pid 8792, exited=False)
-captured ja (pid 5416, exited=False)
-captured kanji-only-fm (pid 5592, exited=False)
-captured ko (pid 3316, exited=False)
-captured remote-images (pid 4808, exited=False)
-captured zh-hans (pid 9764, exited=False)
-captured zh-hant (pid 4584, exited=False)
+captured en-image (pid 3820, exited=False)
+captured ja (pid 8720, exited=False)
+captured kanji-only-fm (pid 8416, exited=False)
+captured ko (pid 8752, exited=False)
+captured remote-images (pid 2268, exited=False)
+captured zh-hans (pid 3904, exited=False)
+captured zh-hant (pid 8692, exited=False)
 
 [mdr] webview: lang=""
 [mdr] webview: lang="ja"

@@ -456,7 +456,12 @@ pub fn build_html(
 #expand-content img {{ width: 95vw; height: 95vh; object-fit: contain; }}
 #expand-content svg {{ width: 95vw; height: 95vh; }}
 .expandable img, .expandable svg {{ cursor: zoom-in; }}
-.content svg {{ width: 100% !important; height: auto !important; display: block; }}
+/* Shrink an oversized diagram to fit, but never stretch a small one up.
+   `width: 100%` here used to blow a two-node flowchart across the whole
+   column. mermaid-rs-renderer emits both a `width` attribute and a `viewBox`
+   (render.rs), so max-width caps the large ones while height tracks the
+   aspect ratio, and a small diagram keeps its intrinsic size. */
+.content svg {{ max-width: 100%; height: auto; display: block; margin: 0 auto; }}
 
 /* --- mobile (iOS/Android webviews): keep content clear of the notch / status bar --- */
 body {{ padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }}

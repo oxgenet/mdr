@@ -49,6 +49,14 @@ class MainActivity : Activity() {
             settings.javaScriptEnabled = true       // the page's TOC + search are JS
             settings.allowFileAccess = false        // images are inlined; nothing to read from disk
             settings.allowContentAccess = false
+            // Pinch-to-zoom is off by default in a WebView. A large Mermaid
+            // diagram shrinks to fit the screen, so without this there is no
+            // way to read its labels on a phone. The on-screen +/- buttons are
+            // suppressed: they overlap the content and pinch is the gesture
+            // people actually reach for.
+            settings.setSupportZoom(true)
+            settings.builtInZoomControls = true
+            settings.displayZoomControls = false
         }
         setContentView(webView)
         prefs = Prefs.from(this)

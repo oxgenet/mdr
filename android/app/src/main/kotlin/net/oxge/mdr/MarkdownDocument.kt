@@ -3,6 +3,7 @@ package net.oxge.mdr
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Log
 
 /**
  * One Markdown document, loaded far enough to render it.
@@ -19,11 +20,25 @@ data class MarkdownDocument(
 ) {
     companion object {
 
-        /** Read [uri] through the content resolver. Null when it cannot be read. */
+        private const val TAG = "mdr"
+
+        /**
+         * Read [uri] through the content resolver. Null when it cannot be read.
+         *
+         * The failure is logged rather than swallowed: the user-facing toast
+         * says only "could not open", and without the underlying exception
+         * there is no way to tell a permission problem from a missing file or
+         * a provider that has revoked access.
+         */
         fun from(resolver: ContentResolver, uri: Uri): MarkdownDocument? {
             val text = runCatching {
                 resolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
-            }.getOrNull() ?: return null
+            }.onFailure {
+                Log.w(TAG, "cannot read $uri", it)
+            }.getOrNull() ?: run {
+                Log.w(TAG, "no content for $uri")
+                return null
+            }
             return MarkdownDocument(
                 name = displayName(resolver, uri),
                 text = text,

@@ -1,0 +1,42 @@
+/* mdr — iOS shell, English.
+   Kept in step with android/app/src/main/res/values/strings.xml; the two
+   shells show the same wording. */
+
+/* Settings */
+"settings_title" = "Settings";
+"section_reading" = "Reading";
+"pref_toc" = "Show table of contents";
+"pref_toc_summary" = "Open documents with the heading sidebar visible.";
+"pref_lang" = "Document language";
+"pref_lang_summary" = "Chooses the glyph shapes and fonts for CJK text. A document's own front matter always wins.";
+"lang_auto" = "Detect automatically";
+"lang_ja" = "Japanese";
+"lang_zh_hans" = "Chinese (Simplified)";
+"lang_zh_hant" = "Chinese (Traditional)";
+"lang_ko" = "Korean";
+
+/* Support the developer. Prices come from the App Store per storefront; the
+   amounts in the tier names are not hardcoded here. */
+"section_support" = "Support the Developer ☕";
+"support_blurb" = "If you enjoy using Markdown Reader, you can support its continued development by buying the developer a coffee.";
+"support_loading" = "Loading…";
+"support_unavailable" = "In-app support is not available on this device right now.";
+"support_thanks" = "Thank you for supporting mdr! ☕";
+
+/* About */
+"section_about" = "About";
+"about_version" = "Version %@";
+"about_blurb" = "A fast Markdown reader with Mermaid diagrams and CJK-aware rendering. Open source, MIT licensed.";
+/* Attribution. Mirrors COPYRIGHT / UPSTREAM_COPYRIGHT in src/core/licenses.rs,
+   which is what the desktop About dialog shows. MIT requires the upstream
+   notice to be carried, so this is not optional decoration. */
+"about_copyright" = "© 2026 Opusify IT Solutions Pvt. Ltd.";
+"about_upstream" = "Based on mdr by Clever Cloud — original work, MIT.";
+
+/* Viewer */
+"action_settings" = "Settings";
+"action_toc" = "Table of contents";
+"action_search" = "Search";
+"action_share" = "Share";
+"search_hint" = "Search in document";
+"no_headings" = "No headings in this document";

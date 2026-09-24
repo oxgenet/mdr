@@ -10,6 +10,11 @@ import UniformTypeIdentifiers
 final class DocumentViewController: UIViewController, UITextViewDelegate, WKNavigationDelegate,
                                     UISearchBarDelegate, PHPickerViewControllerDelegate {
     private let document: MarkdownDocument
+    private let prefs = Prefs()
+    /// The preferences the current page was rendered with, so returning from
+    /// Settings can tell whether anything actually changed. Mirrors
+    /// `MainActivity.renderedWith` on Android.
+    private var renderedWith: (toc: Bool, lang: String)?
     private let webView = WKWebView(frame: .zero, configuration: {
         let c = WKWebViewConfiguration()
         c.preferences.javaScriptCanOpenWindowsAutomatically = false
@@ -47,7 +52,7 @@ final class DocumentViewController: UIViewController, UITextViewDelegate, WKNavi
         navigationController?.hidesBarsOnSwipe = true   // PDF-viewer behaviour: bars hide while reading
 
         searchBar.delegate = self
-        searchBar.placeholder = "Search in document"
+        searchBar.placeholder = NSLocalizedString("search_hint", comment: "Search in document")
         searchBar.searchBarStyle = .minimal
         searchBar.showsCancelButton = false
         searchBar.returnKeyType = .search
@@ -105,23 +110,43 @@ final class DocumentViewController: UIViewController, UITextViewDelegate, WKNavi
         shareItem.accessibilityLabel = "Share"
         shareItem.accessibilityIdentifier = "shareButton"
         let tocItem = UIBarButtonItem(image: UIImage(systemName: "list.bullet"), style: .plain, target: self, action: #selector(showToc))
-        tocItem.accessibilityLabel = "Table of contents"
+        tocItem.accessibilityLabel = NSLocalizedString("action_toc", comment: "Table of contents")
         tocItem.accessibilityIdentifier = "tocButton"
-        navigationItem.rightBarButtonItems = [shareItem, editItem, searchItem, tocItem]
+        let settingsItem = UIBarButtonItem(image: UIImage(systemName: "gearshape"), style: .plain, target: self, action: #selector(showSettings))
+        settingsItem.accessibilityLabel = NSLocalizedString("action_settings", comment: "Settings")
+        settingsItem.accessibilityIdentifier = "settingsButton"
+        navigationItem.rightBarButtonItems = [shareItem, editItem, searchItem, tocItem, settingsItem]
     }
 
     private func render() {
-        let html = MdrCore.renderPage(markdown: document.text, baseDir: document.baseDir)
+        renderedWith = (prefs.showToc, prefs.lang)
+        let html = MdrCore.renderPage(
+            markdown: document.text,
+            baseDir: document.baseDir,
+            lang: prefs.lang,
+            toc: prefs.showToc
+        )
         webView.loadHTMLString(html, baseURL: nil)
     }
 
     private func refreshPreview() {
-        webView.evaluateJavaScript(MdrCore.updateScript(markdown: textView.text, baseDir: document.baseDir)) { _, _ in }
+        webView.evaluateJavaScript(
+            MdrCore.updateScript(markdown: textView.text, baseDir: document.baseDir, lang: prefs.lang)
+        ) { _, _ in }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        // The page's own ⋮ menu, inline editor and search bar are replaced by native UI.
-        webView.evaluateJavaScript("document.getElementById('kebab').style.display='none'; document.body.classList.add('no-toc'); 'ok'") { _, _ in }
+        // The page's own ⋮ menu, inline editor and search bar are replaced by
+        // native UI, so the kebab always goes.
+        //
+        // The sidebar is conditional: this used to add `no-toc` unconditionally,
+        // which would have made "Show table of contents" a setting that
+        // silently did nothing — the core would render the sidebar and this
+        // line would immediately hide it again. Android never stripped it.
+        let hideSidebar = prefs.showToc ? "" : " document.body.classList.add('no-toc');"
+        webView.evaluateJavaScript(
+            "document.getElementById('kebab').style.display='none';\(hideSidebar) 'ok'"
+        ) { _, _ in }
         NSLog("[mdr-ios] rendered")
     }
 
@@ -146,6 +171,20 @@ final class DocumentViewController: UIViewController, UITextViewDelegate, WKNavi
     @objc private func toggleEdit() {
         if searching { toggleSearch() }
         editMode.toggle()
+    }
+
+    @objc private func showSettings() {
+        let settings = SettingsViewController(prefs: prefs)
+        let nav = UINavigationController(rootViewController: settings)
+        present(nav, animated: true)
+    }
+
+    /// Re-render if Settings changed something since this page was drawn.
+    /// The counterpart of `MainActivity.onResume` on Android.
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        guard let drawn = renderedWith else { return }
+        if drawn.toc != prefs.showToc || drawn.lang != prefs.lang { render() }
     }
 
     @objc private func close() {
@@ -282,7 +321,7 @@ final class DocumentViewController: UIViewController, UITextViewDelegate, WKNavi
                 let level = Int((it["l"] ?? "toc-h1").replacingOccurrences(of: "toc-h", with: "")) ?? 1
                 return TocEntry(title: it["t"] ?? "", anchor: String((it["h"] ?? "#").dropFirst()), level: level)
             }
-            guard !entries.isEmpty else { self.showError("No headings in this document"); return }
+            guard !entries.isEmpty else { self.showError(NSLocalizedString("no_headings", comment: "")); return }
             NSLog("[mdr-ios] toc %d entries", entries.count)
             let sheet = TocViewController.sheet(entries: entries) { e in
                 let id = e.anchor.replacingOccurrences(of: "'", with: "\\'")

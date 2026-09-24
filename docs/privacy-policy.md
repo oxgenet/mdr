@@ -1,3 +1,8 @@
+---
+layout: default
+title: Privacy Policy
+---
+
 # Privacy Policy — mdr (Markdown Reader)
 
 **Last updated:** 18 September 2026

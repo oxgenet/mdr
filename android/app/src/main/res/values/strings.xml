@@ -36,4 +36,9 @@
     <string name="section_about">About</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_blurb">A fast Markdown reader with Mermaid diagrams and CJK-aware rendering. Open source, MIT licensed.</string>
+    <!-- MIT obliges a derivative work to carry the original copyright notice.
+         The desktop About dialog shows both lines from core::licenses; these
+         mirror them, and the iOS About section carries the same pair. -->
+    <string name="about_copyright">© 2026 Opusify IT Solutions Pvt. Ltd.</string>
+    <string name="about_upstream">Based on mdr by Clever Cloud — original work, MIT.</string>
 </resources>

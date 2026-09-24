@@ -34,4 +34,6 @@
     <string name="section_about">このアプリについて</string>
     <string name="about_version">バージョン %1$s</string>
     <string name="about_blurb">Mermaid 図と CJK 対応の描画を備えた軽量な Markdown リーダーです。MIT ライセンスのオープンソースです。</string>
+    <string name="about_copyright">© 2026 Opusify IT Solutions Pvt. Ltd.</string>
+    <string name="about_upstream">Clever Cloud による mdr を基にしています（原著作、MIT）。</string>
 </resources>

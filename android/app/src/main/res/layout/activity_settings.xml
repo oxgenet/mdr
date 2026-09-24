@@ -109,5 +109,19 @@
         <TextView
             style="@style/PrefSummary"
             android:text="@string/about_blurb" />
+
+        <!-- Both notices are required: MIT obliges a derivative to carry the
+             original copyright, and the desktop and iOS About screens show the
+             same pair. -->
+        <TextView
+            android:id="@+id/about_copyright"
+            style="@style/PrefSummary"
+            android:layout_marginTop="10dp"
+            android:text="@string/about_copyright" />
+
+        <TextView
+            android:id="@+id/about_upstream"
+            style="@style/PrefSummary"
+            android:text="@string/about_upstream" />
     </LinearLayout>
 </ScrollView>

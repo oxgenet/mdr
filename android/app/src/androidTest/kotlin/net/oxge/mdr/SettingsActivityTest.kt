@@ -60,6 +60,23 @@ class SettingsActivityTest {
     }
 
     @Test
+    fun theAboutSectionCarriesTheUpstreamAttribution() {
+        // MIT obliges a derivative work to carry the original copyright notice.
+        // The mobile shells were the only place it had been dropped; this pins
+        // it so it cannot quietly disappear again. Mirrors the iOS test
+        // SettingsTests.testAboutCarriesTheUpstreamAttribution.
+        ActivityScenario.launch(SettingsActivity::class.java).use { scenario ->
+            scenario.onActivity { a ->
+                val ours = a.findViewById<TextView>(R.id.about_copyright).text.toString()
+                val upstream = a.findViewById<TextView>(R.id.about_upstream).text.toString()
+                assertTrue("fork copyright missing: '$ours'", ours.contains("Opusify"))
+                assertTrue("upstream notice missing: '$upstream'", upstream.contains("Clever Cloud"))
+                assertTrue("upstream notice must name the licence: '$upstream'", upstream.contains("MIT"))
+            }
+        }
+    }
+
+    @Test
     fun togglingTheTocSwitchPersists() {
         ActivityScenario.launch(SettingsActivity::class.java).use { scenario ->
             scenario.onActivity { a ->

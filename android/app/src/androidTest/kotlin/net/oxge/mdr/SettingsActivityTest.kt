@@ -105,28 +105,43 @@ class SettingsActivityTest {
     }
 
     @Test
-    fun theSupportSectionDegradesQuietlyWithoutConfiguredProducts() {
-        // No in-app products exist for this build yet, so Play returns either a
-        // connection failure or an empty catalogue. Both must land on the same
-        // readable line, and the screen must stay alive.
-        val expected = context.getString(R.string.support_unavailable)
+    fun theSupportSectionAlwaysSettlesIntoATerminalState() {
+        // Whether Play has anything to sell depends on the products being live
+        // and on this build being one Play recognises, so both outcomes are
+        // legitimate here. What must always hold is that the section stops
+        // loading and lands somewhere readable: either the calm unavailable
+        // line with no buttons, or priced tiers. Staying on "Loading…" forever
+        // is the failure worth catching, and the screen must survive either way.
+        val unavailable = context.getString(R.string.support_unavailable)
         val loading = context.getString(R.string.support_loading)
 
         ActivityScenario.launch(SettingsActivity::class.java).use { scenario ->
             var status = loading
-            val deadline = System.currentTimeMillis() + 15_000
-            while (System.currentTimeMillis() < deadline && status == loading) {
+            var statusShown = true
+            var tiers = 0
+            // Generous: this waits on Play Services over the network, and an
+            // emulator is slower than a phone.
+            val deadline = System.currentTimeMillis() + 45_000
+            // Settled means either tiers appeared, or the status line is still
+            // showing but no longer says "Loading…". Reading the text alone is
+            // not enough: on success the status view is hidden rather than
+            // relabelled, so its text stays at whatever it last displayed.
+            fun settled() = tiers > 0 || !statusShown || status != loading
+            while (System.currentTimeMillis() < deadline && !settled()) {
                 Thread.sleep(250)
                 scenario.onActivity { a ->
-                    status = a.findViewById<TextView>(R.id.support_status).text.toString()
+                    val statusView = a.findViewById<TextView>(R.id.support_status)
+                    status = statusView.text.toString()
+                    statusShown = statusView.visibility == android.view.View.VISIBLE
+                    tiers = a.findViewById<android.widget.LinearLayout>(R.id.tier_container).childCount
                 }
             }
-            assertEquals("support section did not settle into the unavailable state", expected, status)
 
-            // And no tier buttons were left behind.
-            scenario.onActivity { a ->
-                val tiers = a.findViewById<android.widget.LinearLayout>(R.id.tier_container)
-                assertEquals(0, tiers.childCount)
+            assertTrue("support section never stopped loading", settled())
+            if (tiers == 0) {
+                assertEquals("no tiers, so the unavailable line must be showing", unavailable, status)
+            } else {
+                assertTrue("tiers are showing, so nothing should be queued", tiers in 1..3)
             }
         }
     }

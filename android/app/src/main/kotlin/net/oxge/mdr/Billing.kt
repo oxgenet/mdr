@@ -1,6 +1,8 @@
 package net.oxge.mdr
 
 import android.app.Activity
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
@@ -84,24 +86,49 @@ class Billing(
         )
         .build()
 
+    private val timeout = Handler(Looper.getMainLooper())
+    private var settled = false
+
+    /** Publish a state, and remember once we have reached a terminal one. */
+    private fun emit(state: State) {
+        Log.i(TAG, "state -> ${state.javaClass.simpleName}")
+        if (state !is State.Loading) {
+            settled = true
+            timeout.removeCallbacksAndMessages(null)
+        }
+        onState(state)
+    }
+
     fun start() {
-        onState(State.Loading)
+        Log.i(TAG, "start(): connecting")
+        emit(State.Loading)
+        // Neither startConnection nor queryProductDetailsAsync is guaranteed to
+        // call back: Play Services can be absent, not signed in, or simply
+        // wedged, and then nothing arrives at all. Without this the section
+        // sits on "Loading…" for as long as the screen is open.
+        timeout.postDelayed(
+            { Log.w(TAG, "timeout fired; settled=$settled"); if (!settled) emit(State.Unavailable("Play did not respond")) },
+            RESPONSE_TIMEOUT_MS,
+        )
         client.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(result: BillingResult) {
                 if (result.responseCode != BillingClient.BillingResponseCode.OK) {
-                    onState(State.Unavailable(result.debugMessage.ifBlank { "code ${result.responseCode}" }))
+                    emit(State.Unavailable(result.debugMessage.ifBlank { "code ${result.responseCode}" }))
                     return
                 }
                 queryTiers()
             }
 
             override fun onBillingServiceDisconnected() {
-                onState(State.Unavailable("disconnected from Play"))
+                emit(State.Unavailable("disconnected from Play"))
             }
         })
     }
 
-    fun stop() = client.endConnection()
+    fun stop() {
+        timeout.removeCallbacksAndMessages(null)
+        client.endConnection()
+    }
 
     private fun queryTiers() {
         val products = PRODUCT_IDS.map {
@@ -115,7 +142,7 @@ class Billing(
         // list, which also reports the products Play could not resolve.
         client.queryProductDetailsAsync(params) { result, queryResult ->
             if (result.responseCode != BillingClient.BillingResponseCode.OK) {
-                onState(State.Unavailable(result.debugMessage.ifBlank { "code ${result.responseCode}" }))
+                emit(State.Unavailable(result.debugMessage.ifBlank { "code ${result.responseCode}" }))
                 return@queryProductDetailsAsync
             }
             val details = queryResult.productDetailsList
@@ -128,10 +155,10 @@ class Billing(
             if (details.isEmpty()) {
                 // The products are not live in the Play Console yet, or this
                 // build is not on a track Play recognises.
-                onState(State.Unavailable("no products configured"))
+                emit(State.Unavailable("no products configured"))
                 return@queryProductDetailsAsync
             }
-            onState(State.Ready(sortTiers(details)))
+            emit(State.Ready(sortTiers(details)))
         }
     }
 
@@ -173,12 +200,15 @@ class Billing(
             ConsumeParams.newBuilder().setPurchaseToken(purchase.purchaseToken).build(),
         ) { result, _ ->
             Log.i(TAG, "consumed: ${result.responseCode}")
-            activity.runOnUiThread { onState(State.Thanks) }
+            activity.runOnUiThread { emit(State.Thanks) }
         }
     }
 
     companion object {
         private const val TAG = "mdr-billing"
+
+        /** How long to wait for Play before declaring the tip jar unavailable. */
+        private const val RESPONSE_TIMEOUT_MS = 12_000L
 
         /**
          * Product IDs, which must match the in-app products created in the Play

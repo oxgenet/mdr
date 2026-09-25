@@ -5,6 +5,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         NSLog("[mdr-ios] core version %@", MdrCore.version)
+        // The image policy is process-global in the Rust core and nothing
+        // carries it across a launch, so it has to be pushed in every time.
+        // Android does the same from its own Application startup.
+        Prefs().applyImagePolicy()
         return true
     }
 

@@ -48,17 +48,18 @@ final class SettingsTests: XCTestCase {
 
     func testTheScreenOpensWithEverySection() {
         let vc = makeScreen()
-        XCTAssertEqual(3, vc.numberOfSections(in: vc.tableView), "expected Reading, Support and About")
+        XCTAssertEqual(4, vc.numberOfSections(in: vc.tableView), "expected Reading, Images, Support and About")
 
         XCTAssertEqual("Reading", vc.tableView(vc.tableView, titleForHeaderInSection: 0))
-        XCTAssertNotNil(vc.tableView(vc.tableView, titleForHeaderInSection: 1))
-        XCTAssertEqual("About", vc.tableView(vc.tableView, titleForHeaderInSection: 2))
+        XCTAssertNotNil(vc.tableView(vc.tableView, titleForHeaderInSection: 2))
+        XCTAssertEqual("Images", vc.tableView(vc.tableView, titleForHeaderInSection: 1))
+        XCTAssertEqual("About", vc.tableView(vc.tableView, titleForHeaderInSection: 3))
 
         // Reading carries both controls.
         XCTAssertEqual(2, vc.tableView(vc.tableView, numberOfRowsInSection: 0))
         XCTAssertTrue(cell(vc, 0, 0).accessoryView is UISwitch, "toc switch missing")
         XCTAssertEqual("languageRow", cell(vc, 0, 1).accessibilityIdentifier, "language picker missing")
-        XCTAssertEqual("aboutVersion", cell(vc, 2, 0).accessibilityIdentifier, "about line missing")
+        XCTAssertEqual("aboutVersion", cell(vc, 3, 0).accessibilityIdentifier, "about line missing")
     }
 
     func testAboutCarriesTheUpstreamAttribution() {
@@ -67,22 +68,22 @@ final class SettingsTests: XCTestCase {
         // mobile equivalent, and dropping it would be a licence problem rather
         // than a cosmetic one.
         let vc = makeScreen()
-        XCTAssertEqual(3, vc.tableView(vc.tableView, numberOfRowsInSection: 2))
+        XCTAssertEqual(3, vc.tableView(vc.tableView, numberOfRowsInSection: 3))
 
-        let ours = (cell(vc, 2, 1).contentConfiguration as? UIListContentConfiguration)?.text ?? ""
+        let ours = (cell(vc, 3, 1).contentConfiguration as? UIListContentConfiguration)?.text ?? ""
         XCTAssertTrue(ours.contains("Opusify"), "our own copyright line is missing, got '\(ours)'")
 
-        let upstream = (cell(vc, 2, 2).contentConfiguration as? UIListContentConfiguration)?.text ?? ""
+        let upstream = (cell(vc, 3, 2).contentConfiguration as? UIListContentConfiguration)?.text ?? ""
         XCTAssertTrue(
             upstream.contains("Clever Cloud"),
             "the upstream attribution is missing from About, got '\(upstream)'"
         )
-        XCTAssertEqual("aboutUpstream", cell(vc, 2, 2).accessibilityIdentifier)
+        XCTAssertEqual("aboutUpstream", cell(vc, 3, 2).accessibilityIdentifier)
     }
 
     func testTheAboutLineShowsTheLoadedCoreVersion() {
         let vc = makeScreen()
-        let content = cell(vc, 2, 0).contentConfiguration as? UIListContentConfiguration
+        let content = cell(vc, 3, 0).contentConfiguration as? UIListContentConfiguration
         let text = content?.text ?? ""
         XCTAssertFalse(MdrCore.version.isEmpty, "the core reported no version")
         XCTAssertTrue(
@@ -139,6 +140,44 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(.checkmark, first.accessoryType, "auto should be ticked when no tag is set")
     }
 
+    // MARK: - image policy
+
+    func testImagePolicyPersistsAndReachesTheCore() throws {
+        let vc = makeScreen()
+        XCTAssertEqual(2, vc.tableView(vc.tableView, numberOfRowsInSection: 1))
+
+        XCTAssertTrue(prefs.remoteImages, "remote images should default on, as on Android")
+        XCTAssertTrue(prefs.allowLocalHttp, "plain http should default on, as on Android")
+
+        let remote = try XCTUnwrap(cell(vc, 1, 0).accessoryView as? UISwitch)
+        XCTAssertEqual("remoteImagesSwitch", remote.accessibilityIdentifier)
+        remote.isOn = false
+        remote.sendActions(for: .valueChanged)
+
+        XCTAssertFalse(prefs.remoteImages, "the switch did not reach preferences")
+        XCTAssertFalse(MdrCore.remoteImages, "the preference did not reach the core")
+
+        // Put the core back so later tests are unaffected — it is global state.
+        prefs.remoteImages = true
+        prefs.applyImagePolicy()
+    }
+
+    func testPlainHttpIsDisabledWhileRemoteImagesAreOff() throws {
+        // Plain http is a narrowing of remote images, so offering it while
+        // they are off would be a switch that does nothing. Android greys it
+        // out the same way.
+        prefs.remoteImages = false
+        let vc = makeScreen()
+        let localHttp = try XCTUnwrap(cell(vc, 1, 1).accessoryView as? UISwitch)
+        XCTAssertEqual("localHttpSwitch", localHttp.accessibilityIdentifier)
+        XCTAssertFalse(localHttp.isEnabled, "plain http must be disabled while remote images are off")
+
+        prefs.remoteImages = true
+        let reopened = makeScreen()
+        let again = try XCTUnwrap(cell(reopened, 1, 1).accessoryView as? UISwitch)
+        XCTAssertTrue(again.isEnabled, "plain http should be available once remote images are on")
+    }
+
     // MARK: - the tip jar
 
     func testTheSupportSectionDegradesQuietlyWithoutConfiguredProducts() {
@@ -148,9 +187,9 @@ final class SettingsTests: XCTestCase {
         let vc = makeScreen()
         vc.applyStoreState(.unavailable("no products configured"))
 
-        XCTAssertEqual(1, vc.tableView(vc.tableView, numberOfRowsInSection: 1),
+        XCTAssertEqual(1, vc.tableView(vc.tableView, numberOfRowsInSection: 2),
                        "the unavailable state should be a single line, not a list")
-        let row = cell(vc, 1, 0)
+        let row = cell(vc, 2, 0)
         XCTAssertEqual("supportStatus", row.accessibilityIdentifier)
         let content = row.contentConfiguration as? UIListContentConfiguration
         XCTAssertEqual("In-app support is not available on this device right now.", content?.text)
@@ -165,8 +204,8 @@ final class SettingsTests: XCTestCase {
             SupportTier(id: SupportCatalogue.boost, label: "🚀  Give Development a Boost", price: "¥1,000"),
         ]))
 
-        XCTAssertEqual(3, vc.tableView(vc.tableView, numberOfRowsInSection: 1))
-        let first = cell(vc, 1, 0)
+        XCTAssertEqual(3, vc.tableView(vc.tableView, numberOfRowsInSection: 2))
+        let first = cell(vc, 2, 0)
         XCTAssertEqual("tier_tip_coffee_1", first.accessibilityIdentifier)
         let content = first.contentConfiguration as? UIListContentConfiguration
         XCTAssertEqual("☕  One Coffee", content?.text)
@@ -176,8 +215,8 @@ final class SettingsTests: XCTestCase {
     func testThanksReplacesTheTiersWithOneLine() {
         let vc = makeScreen()
         vc.applyStoreState(.thanks)
-        XCTAssertEqual(1, vc.tableView(vc.tableView, numberOfRowsInSection: 1))
-        let content = cell(vc, 1, 0).contentConfiguration as? UIListContentConfiguration
+        XCTAssertEqual(1, vc.tableView(vc.tableView, numberOfRowsInSection: 2))
+        let content = cell(vc, 2, 0).contentConfiguration as? UIListContentConfiguration
         XCTAssertEqual("Thank you for supporting mdr! ☕", content?.text)
     }
 }

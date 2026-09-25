@@ -37,7 +37,7 @@ final class MdrAppUITests: XCTestCase {
     /// path `build-app.sh` used.
     @discardableResult
     private func launchWithDocument() -> XCUIApplication {
-        let app = XCUIApplication()
+        app = XCUIApplication()
         app.launchArguments = ["-openFile", fixtureName]
         app.launch()
         waitForRenderedPage(app)
@@ -66,13 +66,66 @@ final class MdrAppUITests: XCTestCase {
         )
     }
 
+    /// Tap a navigation-bar button, reaching into the "More" overflow if iOS
+    /// has collapsed it there.
+    ///
+    /// iOS 26 moves bar items it cannot fit into an overflow menu, and which
+    /// items those are depends on the screen width — all five fit on a 402pt
+    /// iPhone 17 Pro and one does not on a 390pt iPhone 16. A test that only
+    /// looks on the bar therefore passes or fails by device, which is exactly
+    /// how this suite came to be green locally and red on CI.
+    private func tapBarButton(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) {
+        let direct = app.buttons[identifier]
+        if direct.waitForExistence(timeout: 10) {
+            direct.tap()
+            return
+        }
+        let more = app.buttons["OverflowBarButtonItem"]
+        XCTAssertTrue(
+            more.waitForExistence(timeout: 10),
+            "\(identifier) is neither on the navigation bar nor behind a More overflow",
+            file: file, line: line
+        )
+        more.tap()
+        // Inside the overflow the item is a menu row, and it keeps neither the
+        // accessibility identifier nor the accessibility label — it is
+        // addressed by the bar button's `title`.
+        let byIdentifier = app.buttons[identifier]
+        if byIdentifier.waitForExistence(timeout: 5) {
+            byIdentifier.tap()
+            return
+        }
+        let title = Self.overflowTitles[identifier] ?? identifier
+        let byTitle = app.buttons[title]
+        XCTAssertTrue(
+            byTitle.waitForExistence(timeout: 10),
+            "\(identifier) was not in the More overflow either (looked for a row titled '\(title)')",
+            file: file, line: line
+        )
+        byTitle.tap()
+    }
+
+    /// Titles the bar buttons carry into the overflow menu. These are the
+    /// `title` values set in `DocumentViewController.name(_:_:_:)`; without
+    /// them iOS labels the row with the SF Symbol name.
+    private static let overflowTitles = [
+        "settingsButton": "Settings",
+        "shareButton": "Share",
+        "tocButton": "Table of contents",
+        "searchButton": "Search",
+        "editButton": "Edit",
+    ]
+
+    /// The app under test. One instance so `tapBarButton` can reach it.
+    private var app = XCUIApplication()
+
     // MARK: - Opening
 
     func testOpenFromTheDocumentBrowser() {
         // The launch hook bypasses UIDocumentBrowserViewController entirely, so
         // it proves nothing about the way a user actually opens a file. Start
         // cold and pick the document out of the browser.
-        let app = XCUIApplication()
+        app = XCUIApplication()
         app.launch()
 
         // The browser opens on "On My iPhone → mdr", the app's own Documents
@@ -109,7 +162,7 @@ final class MdrAppUITests: XCTestCase {
     }
 
     func testOpenedDocumentReachesTheWebView() {
-        let app = launchWithDocument()
+        launchWithDocument()
         XCTAssertTrue(app.navigationBars[fixtureName].exists,
                       "the navigation bar should carry the document's file name")
         // `<html lang>` is not exposed through the accessibility tree, so the
@@ -121,8 +174,8 @@ final class MdrAppUITests: XCTestCase {
     // MARK: - Editing
 
     func testEditingUpdatesTheLivePreview() {
-        let app = launchWithDocument()
-        app.buttons["editButton"].tap()
+        launchWithDocument()
+        tapBarButton("editButton")
 
         let editor = app.textViews["sourceEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 10), "the source editor did not open")
@@ -144,8 +197,8 @@ final class MdrAppUITests: XCTestCase {
     func testEditsAreSavedInPlaceAndSurviveARelaunch() {
         // UIDocument autosaves and `close()` saves explicitly; the file is
         // edited in place, not copied (LSSupportsOpeningDocumentsInPlace).
-        let app = launchWithDocument()
-        app.buttons["editButton"].tap()
+        launchWithDocument()
+        tapBarButton("editButton")
 
         let editor = app.textViews["sourceEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 10), "the source editor did not open")
@@ -155,7 +208,7 @@ final class MdrAppUITests: XCTestCase {
         editor.typeText("\n\n\(marker)\n")
 
         // Leave edit mode, then close the document — both call save().
-        app.buttons["editButton"].tap()
+        tapBarButton("editButton")
         app.buttons["doneButton"].tap()
         app.terminate()
 
@@ -170,8 +223,8 @@ final class MdrAppUITests: XCTestCase {
     // MARK: - Table of contents
 
     func testTocSheetListsTheDocumentsHeadings() {
-        let app = launchWithDocument()
-        app.buttons["tocButton"].tap()
+        launchWithDocument()
+        tapBarButton("tocButton")
 
         // showToc() scrapes `.sidebar li` out of the rendered page and presents
         // a native sheet. An empty scrape shows an error alert instead.
@@ -200,10 +253,10 @@ final class MdrAppUITests: XCTestCase {
         // would let a completely broken `mdrSearch` pass, since it reports 0 on
         // any failure. So plant a known number of occurrences first, rather
         // than guessing at what the fixture happens to contain.
-        let app = launchWithDocument()
+        launchWithDocument()
         let marker = "Zq\(Int.random(in: 1000...9999))"
 
-        app.buttons["editButton"].tap()
+        tapBarButton("editButton")
         let editor = app.textViews["sourceEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 10), "the source editor did not open")
         editor.tap()
@@ -211,9 +264,9 @@ final class MdrAppUITests: XCTestCase {
 
         let echoed = app.webViews["documentPage"].staticTexts[marker]
         XCTAssertTrue(echoed.waitForExistence(timeout: 15), "the planted text never reached the preview")
-        app.buttons["editButton"].tap()   // leave edit mode
+        tapBarButton("editButton")   // leave edit mode
 
-        app.buttons["searchButton"].tap()
+        tapBarButton("searchButton")
         let field = app.searchFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10), "the search bar did not open")
         field.tap()
@@ -242,8 +295,8 @@ final class MdrAppUITests: XCTestCase {
     // MARK: - Settings
 
     func testSettingsOpensAndTheTocPreferenceReachesThePage() {
-        let app = launchWithDocument()
-        app.buttons["settingsButton"].tap()
+        launchWithDocument()
+        tapBarButton("settingsButton")
 
         // Every section is present.
         XCTAssertTrue(app.switches["tocSwitch"].waitForExistence(timeout: 10),
@@ -272,7 +325,7 @@ final class MdrAppUITests: XCTestCase {
                       "the document did not come back after Settings")
 
         // Put it back so the run leaves no state behind for the next test.
-        app.buttons["settingsButton"].tap()
+        tapBarButton("settingsButton")
         let again = app.switches["tocSwitch"]
         XCTAssertTrue(again.waitForExistence(timeout: 10))
         XCTAssertEqual(
@@ -284,8 +337,8 @@ final class MdrAppUITests: XCTestCase {
     }
 
     func testTheLanguagePickerOffersEveryTagAndPersists() {
-        let app = launchWithDocument()
-        app.buttons["settingsButton"].tap()
+        launchWithDocument()
+        tapBarButton("settingsButton")
         XCTAssertTrue(app.cells["languageRow"].waitForExistence(timeout: 10))
         app.cells["languageRow"].tap()
 
@@ -310,8 +363,8 @@ final class MdrAppUITests: XCTestCase {
     // MARK: - Share
 
     func testShareOffersMarkdownAndPdf() {
-        let app = launchWithDocument()
-        app.buttons["shareButton"].tap()
+        launchWithDocument()
+        tapBarButton("shareButton")
 
         let md = app.buttons["Share Markdown (.md)"]
         let pdf = app.buttons["Share as PDF"]

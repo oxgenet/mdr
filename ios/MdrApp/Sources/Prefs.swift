@@ -32,8 +32,34 @@ struct Prefs {
         nonmutating set { defaults.set(newValue, forKey: Self.keyLang) }
     }
 
+    /// Fetch images a document links over the network. Default on, matching
+    /// the desktop and Android.
+    var remoteImages: Bool {
+        get { defaults.object(forKey: Self.keyRemoteImages) as? Bool ?? true }
+        nonmutating set { defaults.set(newValue, forKey: Self.keyRemoteImages) }
+    }
+
+    /// Permit plain http on the local network. A narrowing of ``remoteImages``:
+    /// the core ignores it while remote images are off, and the UI disables it.
+    var allowLocalHttp: Bool {
+        get { defaults.object(forKey: Self.keyAllowLocalHttp) as? Bool ?? true }
+        nonmutating set { defaults.set(newValue, forKey: Self.keyAllowLocalHttp) }
+    }
+
+    /// Push the image policy into the core.
+    ///
+    /// The counterpart of `Prefs.applyImagePolicy()` on Android. These two
+    /// settings are process-global in Rust rather than per-render, so they
+    /// have to be re-applied on every launch — nothing carries them over.
+    func applyImagePolicy() {
+        MdrCore.remoteImages = remoteImages
+        MdrCore.allowLocalHttp = allowLocalHttp
+    }
+
     static let keyToc = "show_toc"
     static let keyLang = "lang"
+    static let keyRemoteImages = "remote_images"
+    static let keyAllowLocalHttp = "allow_local_http"
 
     /// Tags offered in the picker, in the order they are shown.
     /// Must stay identical to `Prefs.LANG_TAGS` on Android.

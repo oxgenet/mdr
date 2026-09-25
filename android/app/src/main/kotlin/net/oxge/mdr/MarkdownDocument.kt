@@ -17,6 +17,9 @@ data class MarkdownDocument(
     val name: String,
     val text: String,
     val baseDir: String,
+    /** Where it came from, and where an edit is written back to. Null for
+     *  shared text and the welcome screen, which have no file behind them. */
+    val uri: Uri? = null,
 ) {
     companion object {
 
@@ -43,8 +46,26 @@ data class MarkdownDocument(
                 name = displayName(resolver, uri),
                 text = text,
                 baseDir = baseDirForUri(uri.toString()),
+                uri = uri,
             )
         }
+
+        /**
+         * Write [text] back to [uri]. Returns null on success, or a message
+         * explaining why not.
+         *
+         * Truncation is explicit: opening with mode "wt" replaces the file
+         * rather than overwriting the first N bytes, which would leave the
+         * tail of a longer previous version behind.
+         */
+        fun save(resolver: ContentResolver, uri: Uri, text: String): String? =
+            runCatching {
+                resolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                    ?: return "the provider gave no way to write this document"
+                null
+            }.onFailure {
+                Log.w(TAG, "cannot write $uri", it)
+            }.getOrElse { it.message ?: "could not save" }
 
         /** A document made from shared text, which has no file behind it. */
         fun fromText(name: String, text: String) = MarkdownDocument(name, text, "")

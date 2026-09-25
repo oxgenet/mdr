@@ -10,6 +10,8 @@
     <string name="no_headings">No headings in this document</string>
     <string name="open_failed">Could not open this document</string>
     <string name="welcome">Open a Markdown file to start reading.</string>
+    <string name="save_no_file">Nothing to save to — open a document first.</string>
+    <string name="links_unsupported">Links between documents are not supported here yet.</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>

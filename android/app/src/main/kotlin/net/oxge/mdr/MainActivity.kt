@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.webkit.WebView
@@ -38,6 +39,14 @@ class MainActivity : Activity() {
                     addCategory(Intent.CATEGORY_OPENABLE)
                     type = "*/*"
                     putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/markdown", "text/x-markdown", "text/plain"))
+                    // Write is requested so the editor can save back, and
+                    // persistable so the grant survives a restart rather than
+                    // expiring the moment the process dies.
+                    addFlags(
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
+                    )
                 }
                 startActivityForResult(intent, REQUEST_OPEN)
             }
@@ -57,6 +66,8 @@ class MainActivity : Activity() {
             settings.setSupportZoom(true)
             settings.builtInZoomControls = true
             settings.displayZoomControls = false
+            // The page's own editor talks over window.ipc; see PageBridge.
+            addJavascriptInterface(PageBridge(::onPageCommand), PageBridge.NAME)
         }
         setContentView(webView)
         prefs = Prefs.from(this)
@@ -95,7 +106,18 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_OPEN && resultCode == RESULT_OK) {
-            data?.data?.let { load(it) }
+            data?.data?.let { uri ->
+                // Claim the grant before reading: without this the URI is only
+                // usable until the process dies, and a save after a restart
+                // would fail with a SecurityException.
+                runCatching {
+                    contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                    )
+                }.onFailure { Log.w("mdr", "could not persist permission for $uri", it) }
+                load(uri)
+            }
         }
     }
 
@@ -178,6 +200,45 @@ class MainActivity : Activity() {
         ID_SHARE -> { shareText(); true }
         ID_SETTINGS -> { startActivity(Intent(this, SettingsActivity::class.java)); true }
         else -> super.onOptionsItemSelected(item)
+    }
+
+    /**
+     * Handle a command the rendered page sent over `window.ipc`.
+     *
+     * Arrives on a WebView worker thread, so everything is marshalled to the
+     * main thread before touching the WebView or the document.
+     */
+    private fun onPageCommand(cmd: String, text: String) = runOnUiThread {
+        when (cmd) {
+            // Debounced by the page itself; re-render the preview from the
+            // unsaved editor text without touching the file.
+            "preview" -> webView.evaluateJavascript(
+                MdrCore.updateScript(text, document?.baseDir.orEmpty(), prefs.lang),
+                null,
+            )
+
+            "save" -> saveDocument(text)
+
+            // Relative links between documents. The desktop resolves these
+            // against the open file's directory; a content:// document has no
+            // directory to resolve against, so there is nothing to follow.
+            "open" -> Toast.makeText(this, R.string.links_unsupported, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Write the editor's text back to the document, and tell the page. */
+    private fun saveDocument(text: String) {
+        val uri = document?.uri
+        val error = when {
+            uri == null -> getString(R.string.save_no_file)
+            else -> MarkdownDocument.save(contentResolver, uri, text)
+        }
+        if (error == null) {
+            // Keep the in-memory copy in step, so a later re-render or a
+            // preference change does not resurrect the pre-save text.
+            document = document?.copy(text = text)
+        }
+        webView.evaluateJavascript(PageBridge.savedCallback(error), null)
     }
 
     /** Drive the page's own highlighter — the same `mdrSearch` hook iOS uses. */

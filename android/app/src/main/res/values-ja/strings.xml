@@ -9,6 +9,8 @@
     <string name="no_headings">この文書には見出しがありません</string>
     <string name="open_failed">この文書を開けませんでした</string>
     <string name="welcome">Markdown ファイルを開いて読み始めてください。</string>
+    <string name="save_no_file">保存先がありません。先に文書を開いてください。</string>
+    <string name="links_unsupported">文書間のリンクにはまだ対応していません。</string>
 
     <!-- 設定 -->
     <string name="settings_title">設定</string>

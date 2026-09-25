@@ -26,9 +26,29 @@ final class ZoomTests: XCTestCase {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
         XCTAssertFalse(web.isLoading, "the page never finished loading")
-        // Let the viewport be applied to the scroll view.
-        try await Task.sleep(nanoseconds: 700_000_000)
+        await waitForViewport(web)
         return web
+    }
+
+    /// Wait until WKWebView has applied the page's viewport to its scroll view.
+    ///
+    /// `contentSize.width` starts at WebKit's 980pt fallback — the width it
+    /// lays a page out at before it has processed a viewport meta — and only
+    /// narrows to the screen afterwards. That happens within about 50ms on
+    /// this Mac and took longer than 700ms on a GitHub runner, so the fixed
+    /// sleep that used to be here passed locally and failed in CI on every
+    /// commit. Poll instead.
+    ///
+    /// If the page is genuinely too wide this returns after the timeout and
+    /// the caller's assertion reports the real width, which is the behaviour
+    /// we want: a slow runner costs seconds, a real regression still fails.
+    private func waitForViewport(_ web: WKWebView, timeout: TimeInterval = 20) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let width = web.scrollView.contentSize.width
+            if width > 0 && width <= web.bounds.width + 1 { return }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
     }
 
     func testTheRenderedPageIsPinchZoomable() async throws {
@@ -80,7 +100,10 @@ final class ZoomTests: XCTestCase {
         let contentWidth = scroll.contentSize.width
         XCTAssertLessThanOrEqual(
             contentWidth, web.bounds.width + 1,
-            "the page is wider than the screen at 1x — the diagram is not being capped"
+            "the page lays out at \(contentWidth)pt on a \(web.bounds.width)pt screen, so it "
+                + "scrolls sideways at 1x. Either the diagram is not being capped by "
+                + "`.mermaid-diagram { max-width: 100% }`, or the viewport meta was dropped — "
+                + "980pt in particular is WebKit's no-viewport fallback width."
         )
         XCTAssertGreaterThan(
             scroll.maximumZoomScale, 1.0,

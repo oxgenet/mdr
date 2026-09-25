@@ -47,6 +47,7 @@ Markdown ビューア／エディタの OSS 調査から、mdr フォーク（ox
 
 - **Windows の Smart App Control（SAC）が有効だと cargo は一切ビルドできない（2026-09-16）**: cargo が起動するビルドスクリプトは「新規に生成された未署名の実行ファイル」なので、`An Application Control policy has blocked this file. (os error 4551)` で止まる。**プロセス起動だけが止まり、proc-macro の DLL ロードは通る**ため、途中まで進んで見えるのが紛らわしい。`RUSTFLAGS` を変えてハッシュを変えても悪化するだけで回避できない。判定は `HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy` の `VerifiedAndReputablePolicyState`（1 = 有効）。**SAC は一度切ると Windows を再インストールするまで戻せないので、勝手に切らない。** 逃げ道は WSL / CI / 別マシンでビルドして成果物だけ持ち込むこと。Gradle・Kotlin・Java・エミュレータは SAC の影響を受けないので、Android 側の検証は Windows のままで完結できる。
 - **PowerShell 5.1 は BOM なし UTF-8 の .ps1 を ANSI として読む**: スクリプト中の em ダッシュなどの非 ASCII 文字が化けて「文字列が終端されていません」というパースエラーになる。**.ps1 と、Windows のコンソールに出るテスト診断文字列は ASCII だけで書く。**
+- **エミュレータのテストを途中で殺すとロックが 2 か所に残り、次回が「テストが壊れた」ように見える（2026-09-18）**: 症状は Gradle の `Test run failed to complete. No test results` と `Failed to create MD5 hash for ... utp.1.log.lck`。原因はテスト結果ではなくロックファイルで、(1) `app/build/outputs/androidTest-results/` に残る `*.lck`、(2) AVD 側の `~/.android/avd/<name>.avd/multiinstance.lock`。後者が残るとエミュレータ自体が起動せず `adb devices` が空になる。**復旧手順は「qemu/emulator を kill → 両方のロックを削除 → `adb kill-server` → `-no-snapshot` で起動」**。テストコードを疑う前にロックを見る。
 - **Kotlin の `object` 初期化子で `System.loadLibrary` を呼ぶと、.so が無いときテストが途中で全滅する**: `UnsatisfiedLinkError` がクラス初期化中に飛んでプロセスごと落ち、instrumented テストの残りが実行されない（24 件中 22 件しか走らなかった）。`try/catch` で `loadError` に畳んで `isAvailable` を公開し、呼び出し側は空文字を受けてエラー表示に切り替える。**実機で ABI が足りないときも同じ落ち方をするので、これは production の堅牢性の話でもある。**
 
 ## 業務知識

@@ -14,6 +14,13 @@
 "lang_zh_hant" = "中国語（繁体字）";
 "lang_ko" = "韓国語";
 
+/* 画像。Android の values-ja/strings.xml と同じ文言。 */
+"section_images" = "画像";
+"pref_remote_images" = "ウェブの画像を読み込む";
+"pref_remote_images_summary" = "文書が https で参照している画像を取得します。オフにするとすべて端末内で完結します。";
+"pref_local_http" = "ネットワーク内の http を許可";
+"pref_local_http_summary" = "localhost・プライベートアドレス・*.local に限り http を許可します（NAS や開発サーバー用）。公開サイトには適用されません。";
+
 /* 開発者を応援する */
 "section_support" = "開発者を応援する ☕";
 "support_blurb" = "Markdown Reader を気に入っていただけたら、今後の開発をコーヒー代で応援できます。";

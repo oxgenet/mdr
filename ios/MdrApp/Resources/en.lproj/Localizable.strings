@@ -15,6 +15,13 @@
 "lang_zh_hant" = "Chinese (Traditional)";
 "lang_ko" = "Korean";
 
+/* Images. Same wording as Android's values/strings.xml. */
+"section_images" = "Images";
+"pref_remote_images" = "Load images from the web";
+"pref_remote_images_summary" = "Fetch images a document links by https. Turning this off keeps everything on your device.";
+"pref_local_http" = "Allow plain http on your network";
+"pref_local_http_summary" = "Permit http for localhost, private addresses and *.local — a NAS or a dev server. Never for public sites.";
+
 /* Support the developer. Prices come from the App Store per storefront; the
    amounts in the tier names are not hardcoded here. */
 "section_support" = "Support the Developer ☕";

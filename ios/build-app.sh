@@ -53,6 +53,22 @@ for rt,devs in d["devices"].items():
         if x["name"]==name: print(x["udid"]); sys.exit(0)' "$DEVICE_NAME")
 fi
 [ -n "$UDID" ] || { echo "FAIL: no iPhone simulator available"; exit 1; }
+# Log which device this is. Navigation-bar layout depends on screen width —
+# five bar items fit on a 402pt iPhone 17 Pro and overflow into a "More" menu
+# on a 390pt iPhone 16 — so "which simulator" is the first thing you need when
+# a UI test passes locally and fails in CI. It is not guessable after the fact.
+DEVICE_INFO=$(xcrun simctl list devices available -j | UDID="$UDID" python3 -c '
+import sys, json, os
+want = os.environ["UDID"]
+data = json.load(sys.stdin)
+for runtime, devices in data["devices"].items():
+    for dev in devices:
+        if dev["udid"] == want:
+            os_name = runtime.split(".")[-1].replace("-", " ")
+            print(dev["name"] + "  (" + os_name + ")")
+            sys.exit(0)
+')
+echo "   device: ${DEVICE_INFO:-$UDID}"
 xcrun simctl boot "$UDID" 2>/dev/null || true
 xcrun simctl bootstatus "$UDID" -b >/dev/null
 open -a Simulator --args -CurrentDeviceUDID "$UDID" >/dev/null 2>&1 || true

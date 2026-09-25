@@ -16,7 +16,7 @@ final class SettingsViewController: UITableViewController {
     private var storeState: Store.State = .loading
 
     private enum Section: Int, CaseIterable {
-        case reading, support, about
+        case reading, images, support, about
     }
 
     /// `store` is constructed here rather than defaulted in the signature:
@@ -66,6 +66,7 @@ final class SettingsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         switch Section(rawValue: section) {
         case .reading: return NSLocalizedString("section_reading", comment: "Reading")
+        case .images: return NSLocalizedString("section_images", comment: "Images")
         case .support: return NSLocalizedString("section_support", comment: "Support the Developer")
         case .about: return NSLocalizedString("section_about", comment: "About")
         case .none: return nil
@@ -75,6 +76,7 @@ final class SettingsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
         switch Section(rawValue: section) {
         case .reading: return NSLocalizedString("pref_lang_summary", comment: "")
+        case .images: return NSLocalizedString("pref_local_http_summary", comment: "")
         case .support: return NSLocalizedString("support_blurb", comment: "")
         case .about: return NSLocalizedString("about_blurb", comment: "")
         case .none: return nil
@@ -84,6 +86,8 @@ final class SettingsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch Section(rawValue: section) {
         case .reading:
+            return 2
+        case .images:
             return 2
         case .support:
             // Either one status line, or one row per tier.
@@ -124,6 +128,31 @@ final class SettingsViewController: UITableViewController {
                 content.secondaryText = Prefs.langLabel(at: Prefs.langIndex(prefs.lang))
                 cell.accessoryType = .disclosureIndicator
                 cell.accessibilityIdentifier = "languageRow"
+            }
+
+        case .images:
+            // Two switches, mirroring Android's Images section. Plain http is
+            // a narrowing of remote images, so it is disabled while remote
+            // images are off — the core ignores it in that state anyway, and a
+            // switch that does nothing is worse than one that is greyed out.
+            cell.selectionStyle = .none
+            if indexPath.row == 0 {
+                content.text = NSLocalizedString("pref_remote_images", comment: "")
+                content.secondaryText = NSLocalizedString("pref_remote_images_summary", comment: "")
+                let toggle = UISwitch()
+                toggle.isOn = prefs.remoteImages
+                toggle.accessibilityIdentifier = "remoteImagesSwitch"
+                toggle.addTarget(self, action: #selector(remoteImagesChanged(_:)), for: .valueChanged)
+                cell.accessoryView = toggle
+            } else {
+                content.text = NSLocalizedString("pref_local_http", comment: "")
+                let toggle = UISwitch()
+                toggle.isOn = prefs.allowLocalHttp
+                toggle.isEnabled = prefs.remoteImages
+                toggle.accessibilityIdentifier = "localHttpSwitch"
+                toggle.addTarget(self, action: #selector(localHttpChanged(_:)), for: .valueChanged)
+                cell.accessoryView = toggle
+                if !prefs.remoteImages { content.textProperties.color = .secondaryLabel }
             }
 
         case .support:
@@ -205,6 +234,18 @@ final class SettingsViewController: UITableViewController {
 
     @objc private func tocChanged(_ sender: UISwitch) {
         prefs.showToc = sender.isOn
+    }
+
+    @objc private func remoteImagesChanged(_ sender: UISwitch) {
+        prefs.remoteImages = sender.isOn
+        prefs.applyImagePolicy()
+        // Redraw the section so the plain-http row enables or greys out.
+        tableView.reloadSections(IndexSet(integer: Section.images.rawValue), with: .none)
+    }
+
+    @objc private func localHttpChanged(_ sender: UISwitch) {
+        prefs.allowLocalHttp = sender.isOn
+        prefs.applyImagePolicy()
     }
 
     // MARK: - Test seams

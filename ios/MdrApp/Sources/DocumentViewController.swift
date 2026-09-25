@@ -14,7 +14,7 @@ final class DocumentViewController: UIViewController, UITextViewDelegate, WKNavi
     /// The preferences the current page was rendered with, so returning from
     /// Settings can tell whether anything actually changed. Mirrors
     /// `MainActivity.renderedWith` on Android.
-    private var renderedWith: (toc: Bool, lang: String)?
+    private var renderedWith: (toc: Bool, lang: String, remoteImages: Bool, localHttp: Bool)?
     private let webView = WKWebView(frame: .zero, configuration: {
         let c = WKWebViewConfiguration()
         c.preferences.javaScriptCanOpenWindowsAutomatically = false
@@ -43,11 +43,9 @@ final class DocumentViewController: UIViewController, UITextViewDelegate, WKNavi
         title = document.fileURL.lastPathComponent
         navigationItem.largeTitleDisplayMode = .never
         editItem = UIBarButtonItem(image: UIImage(systemName: "pencil.tip.crop.circle"), style: .plain, target: self, action: #selector(toggleEdit))
-        editItem.accessibilityLabel = "Edit"
-        editItem.accessibilityIdentifier = "editButton"
+        name(editItem, "Edit", "editButton")
         searchItem = UIBarButtonItem(image: UIImage(systemName: "magnifyingglass"), style: .plain, target: self, action: #selector(toggleSearch))
-        searchItem.accessibilityLabel = "Search"
-        searchItem.accessibilityIdentifier = "searchButton"
+        name(searchItem, "Search", "searchButton")
         installBarItems()
         navigationController?.hidesBarsOnSwipe = true   // PDF-viewer behaviour: bars hide while reading
 
@@ -99,27 +97,46 @@ final class DocumentViewController: UIViewController, UITextViewDelegate, WKNavi
                                                name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
     }
 
+    /// Give a symbol-only bar button a name, in all three places that need one.
+    ///
+    /// `title` is not decoration here. When iOS 26 collapses an item into the
+    /// "More" overflow it renders it as a text row, and an item with only an
+    /// image is labelled with the raw SF Symbol name — the Settings item read
+    /// as "gearshape" to VoiceOver and to the tests. Setting a title fixes the
+    /// menu row; the bar itself still shows just the image.
+    private func name(_ item: UIBarButtonItem, _ title: String, _ identifier: String) {
+        item.title = title
+        item.accessibilityLabel = title
+        item.accessibilityIdentifier = identifier
+    }
+
     private func installBarItems() {
         navigationItem.titleView = nil
         let done = UIBarButtonItem(title: "Done", style: .done, target: self, action: #selector(close))
         done.accessibilityIdentifier = "doneButton"
         navigationItem.leftBarButtonItem = done
-        // Symbol-only buttons get no automatic label, which leaves them
-        // unreachable to VoiceOver and to the UI tests. Name them both.
         let shareItem = UIBarButtonItem(image: UIImage(systemName: "square.and.arrow.up"), style: .plain, target: self, action: #selector(share))
-        shareItem.accessibilityLabel = "Share"
-        shareItem.accessibilityIdentifier = "shareButton"
+        name(shareItem, NSLocalizedString("action_share", comment: "Share"), "shareButton")
         let tocItem = UIBarButtonItem(image: UIImage(systemName: "list.bullet"), style: .plain, target: self, action: #selector(showToc))
-        tocItem.accessibilityLabel = NSLocalizedString("action_toc", comment: "Table of contents")
-        tocItem.accessibilityIdentifier = "tocButton"
+        name(tocItem, NSLocalizedString("action_toc", comment: "Table of contents"), "tocButton")
         let settingsItem = UIBarButtonItem(image: UIImage(systemName: "gearshape"), style: .plain, target: self, action: #selector(showSettings))
-        settingsItem.accessibilityLabel = NSLocalizedString("action_settings", comment: "Settings")
-        settingsItem.accessibilityIdentifier = "settingsButton"
-        navigationItem.rightBarButtonItems = [shareItem, editItem, searchItem, tocItem, settingsItem]
+        name(settingsItem, NSLocalizedString("action_settings", comment: "Settings"), "settingsButton")
+        // Order matters. iOS 26 collapses whatever does not fit into a "More"
+        // overflow, taking from the trailing (rightmost) end — which is
+        // element 0 of this array. Five items plus Done do not fit at 390pt,
+        // the width of an iPhone 16/16e, so one of them *will* be collapsed on
+        // most phones. Settings goes first so that it is the one to go: it is
+        // the least-used of the five, and on Android it already lives in the
+        // options-menu overflow. Share, Edit, Search and Table of contents
+        // stay on the bar.
+        //
+        // This was found by CI, not locally: a 402pt iPhone 17 Pro fits all
+        // six and shows nothing wrong.
+        navigationItem.rightBarButtonItems = [settingsItem, shareItem, editItem, searchItem, tocItem]
     }
 
     private func render() {
-        renderedWith = (prefs.showToc, prefs.lang)
+        renderedWith = (prefs.showToc, prefs.lang, prefs.remoteImages, prefs.allowLocalHttp)
         let html = MdrCore.renderPage(
             markdown: document.text,
             baseDir: document.baseDir,
@@ -184,7 +201,14 @@ final class DocumentViewController: UIViewController, UITextViewDelegate, WKNavi
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         guard let drawn = renderedWith else { return }
-        if drawn.toc != prefs.showToc || drawn.lang != prefs.lang { render() }
+        // Image policy counts too: remote images are resolved while the page
+        // is built, so flipping either switch changes what the page contains.
+        if drawn.toc != prefs.showToc
+            || drawn.lang != prefs.lang
+            || drawn.remoteImages != prefs.remoteImages
+            || drawn.localHttp != prefs.allowLocalHttp {
+            render()
+        }
     }
 
     @objc private func close() {

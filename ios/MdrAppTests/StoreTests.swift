@@ -140,28 +140,24 @@ final class StoreTests: XCTestCase {
         XCTAssertTrue(entitled.isEmpty, "a tip must not grant an entitlement, got \(entitled)")
     }
 
-    /// What every tester sees until the products exist in App Store Connect:
-    /// the catalogue call fails or comes back empty, and the screen has to
-    /// settle on one calm line rather than an error.
+    /// A store failure has to land on the calm line rather than an error.
     ///
-    /// Gated on iOS 17 only because that is when `setSimulatedError` arrived;
-    /// the deployment target is 16, so the check has to be explicit. The path
-    /// itself matters on every version, and `SettingsTests` covers how it
-    /// renders without needing a store at all.
-    func testAFailedCatalogueLoadDegradesToTheQuietLine() async throws {
-        guard #available(iOS 17.0, *) else {
-            throw XCTSkip("SKTestSession.setSimulatedError requires iOS 17")
-        }
-        // Prove the store works first, otherwise "unavailable" would be the
-        // answer either way and this would pass without testing anything.
-        _ = try await requireLocalStore()
-
-        try await session.setSimulatedError(.generic(.unknown), forAPI: .loadProducts)
+    /// This goes through `buy`'s own guard rather than a simulated StoreKit
+    /// failure, because both simulated variants proved unusable. Failing the
+    /// *catalogue* is vacuous once any earlier test has loaded it — StoreKit
+    /// caches `Product.products(for:)` for the process, so the error is never
+    /// consulted, and test order decides whether the assertion means anything.
+    /// Failing the *purchase* hangs: `product.purchase()` wants a UI scene to
+    /// anchor its sheet to, and a unit test hosted in the app has none, so the
+    /// await never returns and takes the whole suite down with it.
+    ///
+    /// The guard below reaches the same `.unavailable` state by the same line
+    /// of code, deterministically and in microseconds.
+    func testBuyingATierTheStoreDoesNotKnowDegradesToTheQuietLine() async {
         let store = Store()
-        await store.loadProducts()
-
+        await store.buy(SupportTier(id: "tip_not_a_real_product", label: "x", price: "¥1"))
         guard case .unavailable = store.state else {
-            return XCTFail("a failed catalogue load must degrade quietly, got \(store.state)")
+            return XCTFail("an unknown product must degrade quietly, got \(store.state)")
         }
     }
 }

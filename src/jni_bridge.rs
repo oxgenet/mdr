@@ -101,6 +101,48 @@ pub extern "system" fn Java_net_oxge_mdr_MdrCore_nativeDetectLang<'local>(
     out(&mut env, tag)
 }
 
+/// Allow or forbid loading images from http(s) URLs at all.
+///
+/// The policy is process-global in `core::urlpolicy`, which is why this is a
+/// setter rather than a render argument. Android has no `config.kdl`, so the
+/// settings screen drives it through here.
+#[no_mangle]
+pub extern "system" fn Java_net_oxge_mdr_MdrCore_nativeSetRemoteImages<'local>(
+    _env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    on: jboolean,
+) {
+    crate::core::urlpolicy::set_remote_images(on != 0);
+}
+
+/// Allow or forbid plain-http images for local and private addresses.
+#[no_mangle]
+pub extern "system" fn Java_net_oxge_mdr_MdrCore_nativeSetAllowLocalHttp<'local>(
+    _env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    on: jboolean,
+) {
+    crate::core::urlpolicy::set_allow_local_http(on != 0);
+}
+
+/// Current remote-image setting, so the shell can show the real state.
+#[no_mangle]
+pub extern "system" fn Java_net_oxge_mdr_MdrCore_nativeRemoteImages<'local>(
+    _env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) -> jboolean {
+    u8::from(crate::core::urlpolicy::remote_images())
+}
+
+/// Current plain-http-for-local-addresses setting.
+#[no_mangle]
+pub extern "system" fn Java_net_oxge_mdr_MdrCore_nativeAllowLocalHttp<'local>(
+    _env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) -> jboolean {
+    u8::from(crate::core::urlpolicy::allow_local_http())
+}
+
 /// Library version string, so the shell can show which core it loaded.
 #[no_mangle]
 pub extern "system" fn Java_net_oxge_mdr_MdrCore_nativeVersion<'local>(

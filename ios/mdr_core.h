@@ -21,6 +21,17 @@ char *mdr_render_update_js(const char *markdown, const char *base_dir, const cha
 /// Resolved language tag for the document ("" when none).
 char *mdr_detect_lang(const char *markdown, const char *lang);
 
+/// Image URL policy. Process-global (see core::urlpolicy), so a shell sets it
+/// once rather than passing it with every render. The desktop takes these from
+/// --no-remote-images / config.kdl; the mobile shells have no config file and
+/// drive them from their settings screen.
+///
+/// mdr_set_allow_local_http has no effect while remote images are off.
+void mdr_set_remote_images(bool on);
+void mdr_set_allow_local_http(bool on);
+bool mdr_remote_images(void);
+bool mdr_allow_local_http(void);
+
 /// Library version.
 char *mdr_version(void);
 

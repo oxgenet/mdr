@@ -59,6 +59,36 @@ object MdrCore {
     /** Version of the Rust core actually loaded, or "" when there is none. */
     val version: String get() = if (!isAvailable) "" else nativeVersion() ?: ""
 
+    /**
+     * Whether the loaded core exposes the image URL policy.
+     *
+     * A `libmdr.so` built before these entry points existed still loads and
+     * renders perfectly; only these four symbols are missing, and the JVM
+     * resolves a native method on first call, so the absence surfaces as an
+     * `UnsatisfiedLinkError` at that moment rather than at load. Probing once
+     * lets the settings screen hide controls that would otherwise do nothing.
+     */
+    val policySupported: Boolean by lazy {
+        isAvailable && runCatching { nativeRemoteImages() }.isSuccess
+    }
+
+    /** Load images from http(s) URLs at all. Ignored by an older core. */
+    fun setRemoteImages(on: Boolean) {
+        if (policySupported) runCatching { nativeSetRemoteImages(on) }
+    }
+
+    /** Allow plain http for localhost / private addresses. Ignored by an older core. */
+    fun setAllowLocalHttp(on: Boolean) {
+        if (policySupported) runCatching { nativeSetAllowLocalHttp(on) }
+    }
+
+    /** The policy the core is actually applying, not what was last requested. */
+    fun remoteImages(): Boolean =
+        if (!policySupported) true else runCatching { nativeRemoteImages() }.getOrDefault(true)
+
+    fun allowLocalHttp(): Boolean =
+        if (!policySupported) true else runCatching { nativeAllowLocalHttp() }.getOrDefault(true)
+
     @JvmStatic
     private external fun nativeRenderPage(
         markdown: String,
@@ -76,4 +106,16 @@ object MdrCore {
 
     @JvmStatic
     private external fun nativeVersion(): String?
+
+    @JvmStatic
+    private external fun nativeSetRemoteImages(on: Boolean)
+
+    @JvmStatic
+    private external fun nativeSetAllowLocalHttp(on: Boolean)
+
+    @JvmStatic
+    private external fun nativeRemoteImages(): Boolean
+
+    @JvmStatic
+    private external fun nativeAllowLocalHttp(): Boolean
 }

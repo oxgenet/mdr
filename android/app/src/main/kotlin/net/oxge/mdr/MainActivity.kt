@@ -71,6 +71,9 @@ class MainActivity : Activity() {
         }
         setContentView(webView)
         prefs = Prefs.from(this)
+        // The core holds the image policy process-wide, so it has to be
+        // restored on each launch rather than only when Settings changes it.
+        prefs.applyImagePolicy()
         handleIntent(intent)
         if (document == null) showWelcome()
     }
@@ -119,15 +122,58 @@ class MainActivity : Activity() {
                 load(uri)
             }
         }
+        if (requestCode == REQUEST_TREE && resultCode == RESULT_OK) {
+            data?.data?.let { tree ->
+                runCatching {
+                    contentResolver.takePersistableUriPermission(
+                        tree,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                    )
+                }.onFailure { Log.w("mdr", "could not persist folder grant for $tree", it) }
+                chooseFromFolder(tree)
+            }
+        }
     }
 
-    private fun load(uri: Uri) {
+    private fun load(uri: Uri, treeUri: Uri? = null) {
         val doc = MarkdownDocument.from(contentResolver, uri)
         if (doc == null) {
             Toast.makeText(this, R.string.open_failed, Toast.LENGTH_LONG).show()
             return
         }
-        show(doc)
+        show(doc.copy(treeUri = treeUri))
+    }
+
+    /**
+     * Ask for a folder, then offer the Markdown inside it.
+     *
+     * This is the only route by which relative images can work: a single
+     * document URI cannot name its neighbours, whereas a granted tree can.
+     */
+    private fun openFolder() {
+        startActivityForResult(
+            Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
+            ),
+            REQUEST_TREE,
+        )
+    }
+
+    /** Let the reader pick one of the Markdown files in the granted folder. */
+    private fun chooseFromFolder(treeUri: Uri) {
+        val entries = TreeDocuments.listMarkdown(contentResolver, treeUri)
+        if (entries.isEmpty()) {
+            Toast.makeText(this, R.string.folder_empty, Toast.LENGTH_LONG).show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.action_open_folder)
+            .setItems(entries.map { it.name }.toTypedArray()) { _, which ->
+                load(entries[which].uri, treeUri)
+            }
+            .show()
     }
 
     /**
@@ -141,7 +187,14 @@ class MainActivity : Activity() {
         document = doc
         title = doc.name
         renderedWith = prefs.showToc to prefs.lang
-        val html = MdrCore.renderPage(doc.text, doc.baseDir, lang = prefs.lang, toc = prefs.showToc)
+        // A content:// document has no directory for the core to resolve
+        // images against, so when it came from a granted folder they are
+        // fetched here and inlined as data: URIs, which the core passes
+        // through untouched.
+        val source = doc.treeUri
+            ?.let { TreeDocuments.inlineImages(contentResolver, it, doc.text) }
+            ?: doc.text
+        val html = MdrCore.renderPage(source, doc.baseDir, lang = prefs.lang, toc = prefs.showToc)
         if (html.isEmpty()) {
             // Only happens when libmdr.so is missing for this device's ABI.
             // Say so instead of showing a blank screen.
@@ -189,13 +242,16 @@ class MainActivity : Activity() {
             .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
         menu.add(0, ID_SHARE, 3, R.string.action_share)
             .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
-        menu.add(0, ID_SETTINGS, 4, R.string.action_settings)
+        menu.add(0, ID_OPEN_FOLDER, 4, R.string.action_open_folder)
+            .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+        menu.add(0, ID_SETTINGS, 5, R.string.action_settings)
             .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
         return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
         ID_OPEN -> { openDocument.launch(); true }
+        ID_OPEN_FOLDER -> { openFolder(); true }
         ID_TOC -> { showToc(); true }
         ID_SHARE -> { shareText(); true }
         ID_SETTINGS -> { startActivity(Intent(this, SettingsActivity::class.java)); true }
@@ -297,6 +353,8 @@ class MainActivity : Activity() {
         private const val ID_TOC = 3
         private const val ID_SHARE = 4
         private const val ID_SETTINGS = 5
+        private const val ID_OPEN_FOLDER = 6
+        private const val REQUEST_TREE = 2
 
         private val WELCOME_MD = """
             # mdr

@@ -37,6 +37,7 @@ class SettingsActivity : Activity() {
         tiers = findViewById(R.id.tier_container)
 
         bindReadingPrefs()
+        bindImagePrefs()
         findViewById<TextView>(R.id.about_version).text =
             getString(R.string.about_version, MdrCore.version.ifEmpty { "—" })
 
@@ -57,6 +58,38 @@ class SettingsActivity : Activity() {
     }
 
     // --- reading preferences ---
+
+    /**
+     * The image policy section, hidden when the loaded core has no setters for
+     * it. Showing switches that silently do nothing would be worse than not
+     * offering them: the reader would conclude the feature is broken.
+     */
+    private fun bindImagePrefs() {
+        val section = findViewById<LinearLayout>(R.id.images_section)
+        if (!MdrCore.policySupported) {
+            section.visibility = View.GONE
+            return
+        }
+        val localHttp = findViewById<Switch>(R.id.local_http_switch)
+        findViewById<Switch>(R.id.remote_images_switch).apply {
+            isChecked = prefs.remoteImages
+            setOnCheckedChangeListener { _, checked ->
+                prefs.remoteImages = checked
+                prefs.applyImagePolicy()
+                // Plain-http is a narrowing of remote images, so it cannot
+                // mean anything on its own.
+                localHttp.isEnabled = checked
+            }
+        }
+        localHttp.apply {
+            isChecked = prefs.allowLocalHttp
+            isEnabled = prefs.remoteImages
+            setOnCheckedChangeListener { _, checked ->
+                prefs.allowLocalHttp = checked
+                prefs.applyImagePolicy()
+            }
+        }
+    }
 
     private fun bindReadingPrefs() {
         findViewById<Switch>(R.id.toc_switch).apply {

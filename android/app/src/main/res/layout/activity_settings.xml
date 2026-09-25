@@ -70,6 +70,70 @@
             android:layout_marginTop="8dp"
             android:contentDescription="@string/pref_lang" />
 
+        <!-- Images. Hidden entirely when the loaded core predates the policy
+             entry points, rather than showing switches that do nothing. -->
+        <LinearLayout
+            android:id="@+id/images_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <View style="@style/Divider" />
+
+            <TextView
+                style="@style/SectionHeading"
+                android:text="@string/section_images" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:baselineAligned="false">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView style="@style/PrefTitle" android:text="@string/pref_remote_images" />
+                    <TextView style="@style/PrefSummary" android:text="@string/pref_remote_images_summary" />
+                </LinearLayout>
+
+                <Switch
+                    android:id="@+id/remote_images_switch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:contentDescription="@string/pref_remote_images" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:orientation="horizontal"
+                android:baselineAligned="false">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView style="@style/PrefTitle" android:text="@string/pref_local_http" />
+                    <TextView style="@style/PrefSummary" android:text="@string/pref_local_http_summary" />
+                </LinearLayout>
+
+                <Switch
+                    android:id="@+id/local_http_switch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:contentDescription="@string/pref_local_http" />
+            </LinearLayout>
+        </LinearLayout>
+
         <View style="@style/Divider" />
 
         <!-- Support the developer -->

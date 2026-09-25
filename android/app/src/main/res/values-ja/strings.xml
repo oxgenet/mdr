@@ -5,6 +5,8 @@
     <string name="action_search">検索</string>
     <string name="action_share">共有</string>
     <string name="action_settings">設定</string>
+    <string name="action_open_folder">フォルダを開く…</string>
+    <string name="folder_empty">そのフォルダに Markdown ファイルがありません。</string>
     <string name="search_hint">文書内を検索</string>
     <string name="no_headings">この文書には見出しがありません</string>
     <string name="open_failed">この文書を開けませんでした</string>
@@ -24,6 +26,13 @@
     <string name="lang_zh_hans">中国語（簡体字）</string>
     <string name="lang_zh_hant">中国語（繁体字）</string>
     <string name="lang_ko">韓国語</string>
+
+    <!-- 画像 -->
+    <string name="section_images">画像</string>
+    <string name="pref_remote_images">ウェブの画像を読み込む</string>
+    <string name="pref_remote_images_summary">文書が https で参照している画像を取得します。オフにするとすべて端末内で完結します。</string>
+    <string name="pref_local_http">ネットワーク内の http を許可</string>
+    <string name="pref_local_http_summary">localhost・プライベートアドレス・*.local に限り http を許可します（NAS や開発サーバー用）。公開サイトには適用されません。</string>
 
     <!-- 開発者を応援する -->
     <string name="section_support">開発者を応援する ☕</string>

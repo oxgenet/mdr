@@ -20,6 +20,9 @@ data class MarkdownDocument(
     /** Where it came from, and where an edit is written back to. Null for
      *  shared text and the welcome screen, which have no file behind them. */
     val uri: Uri? = null,
+    /** The granted folder this document was opened from, when there is one.
+     *  Only then can its relative images be resolved — see [TreeDocuments]. */
+    val treeUri: Uri? = null,
 ) {
     companion object {
 

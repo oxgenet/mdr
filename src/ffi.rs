@@ -81,6 +81,37 @@ pub unsafe extern "C" fn mdr_detect_lang(markdown: *const c_char, lang: *const c
     out(lang_tag(&md, opt(&lang)))
 }
 
+/// Allow or forbid loading images from http(s) URLs at all.
+///
+/// The policy is process-global (see `core::urlpolicy`), which is why the
+/// shells set it rather than passing it with every render. Desktop takes it
+/// from `--no-remote-images` / `config.kdl`; the mobile shells have no config
+/// file, so they call this from their settings screen.
+#[no_mangle]
+pub extern "C" fn mdr_set_remote_images(on: bool) {
+    crate::core::urlpolicy::set_remote_images(on);
+}
+
+/// Allow or forbid plain-http images for localhost, private IP literals and
+/// `*.local`. Has no effect when remote images are off altogether.
+#[no_mangle]
+pub extern "C" fn mdr_set_allow_local_http(on: bool) {
+    crate::core::urlpolicy::set_allow_local_http(on);
+}
+
+/// Current remote-image setting, so a shell can show the real state rather
+/// than assuming its own stored preference was applied.
+#[no_mangle]
+pub extern "C" fn mdr_remote_images() -> bool {
+    crate::core::urlpolicy::remote_images()
+}
+
+/// Current plain-http-for-local-addresses setting.
+#[no_mangle]
+pub extern "C" fn mdr_allow_local_http() -> bool {
+    crate::core::urlpolicy::allow_local_http()
+}
+
 /// Library version string.
 #[no_mangle]
 pub extern "C" fn mdr_version() -> *mut c_char {
@@ -179,6 +210,28 @@ mod tests {
         // `out()` returns null if a string cannot be converted, and
         // `MdrCore.take` frees whatever it was handed — including that null.
         unsafe { mdr_free(std::ptr::null_mut()) };
+    }
+
+    #[test]
+    fn the_image_url_policy_can_be_set_from_a_shell() {
+        // Process-global, so this test serialises with the others that read it.
+        let _guard = crate::core::urlpolicy::lock_policy_for_test();
+        let (images, local) = (mdr_remote_images(), mdr_allow_local_http());
+
+        mdr_set_remote_images(false);
+        assert!(!mdr_remote_images());
+        // A blocked https image becomes a placeholder rather than vanishing.
+        let html = page(r#"<img src="https://example.com/a.png">"#, ".", "", false, false);
+        assert!(html.contains("img-blocked"), "remote image was not blocked");
+
+        mdr_set_remote_images(true);
+        mdr_set_allow_local_http(false);
+        assert!(mdr_remote_images() && !mdr_allow_local_http());
+        let html = page(r#"<img src="http://192.168.1.5/b.png">"#, ".", "", false, false);
+        assert!(html.contains("img-blocked"), "plain-http image was not blocked");
+
+        mdr_set_remote_images(images);
+        mdr_set_allow_local_http(local);
     }
 
     #[test]

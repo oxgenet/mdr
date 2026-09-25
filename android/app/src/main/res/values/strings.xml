@@ -6,6 +6,8 @@
     <string name="action_search">Search</string>
     <string name="action_share">Share</string>
     <string name="action_settings">Settings</string>
+    <string name="action_open_folder">Open folder…</string>
+    <string name="folder_empty">No Markdown files in that folder.</string>
     <string name="search_hint">Search in document</string>
     <string name="no_headings">No headings in this document</string>
     <string name="open_failed">Could not open this document</string>
@@ -25,6 +27,13 @@
     <string name="lang_zh_hans">Chinese (Simplified)</string>
     <string name="lang_zh_hant">Chinese (Traditional)</string>
     <string name="lang_ko">Korean</string>
+
+    <!-- Images -->
+    <string name="section_images">Images</string>
+    <string name="pref_remote_images">Load images from the web</string>
+    <string name="pref_remote_images_summary">Fetch images a document links by https. Turning this off keeps everything on your device.</string>
+    <string name="pref_local_http">Allow plain http on your network</string>
+    <string name="pref_local_http_summary">Permit http for localhost, private addresses and *.local — a NAS or a dev server. Never for public sites.</string>
 
     <!-- Support the developer. Prices are supplied by Google Play per
          storefront; the amounts in the tier names are not hardcoded here. -->

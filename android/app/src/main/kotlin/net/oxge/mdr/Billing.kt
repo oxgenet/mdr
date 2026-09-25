@@ -48,8 +48,21 @@ class Billing(
         object Thanks : State
     }
 
-    /** One tip tier, priced by Play for the user's storefront. */
-    data class Tier(val id: String, val label: String, val price: String, val details: ProductDetails)
+    /**
+     * One tip tier, priced by Play for the user's storefront.
+     *
+     * [offerToken] identifies which purchase option of the product is being
+     * bought. Products created under Play's newer one-time-product model carry
+     * their price on a purchase option rather than on the product itself, and
+     * the purchase flow has to name the one it means.
+     */
+    data class Tier(
+        val id: String,
+        val label: String,
+        val price: String,
+        val details: ProductDetails,
+        val offerToken: String?,
+    )
 
     private val purchasesUpdated = PurchasesUpdatedListener { result, purchases ->
         when {
@@ -98,10 +111,19 @@ class Billing(
                 .build()
         }
         val params = QueryProductDetailsParams.newBuilder().setProductList(products).build()
-        client.queryProductDetailsAsync(params) { result, details ->
+        // Billing 8 hands back a QueryProductDetailsResult rather than a bare
+        // list, which also reports the products Play could not resolve.
+        client.queryProductDetailsAsync(params) { result, queryResult ->
             if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                 onState(State.Unavailable(result.debugMessage.ifBlank { "code ${result.responseCode}" }))
                 return@queryProductDetailsAsync
+            }
+            val details = queryResult.productDetailsList
+            // Naming the unresolved ids turns the commonest setup mistake — a
+            // product id here not matching the Play Console exactly — into
+            // something diagnosable instead of a blank support section.
+            queryResult.unfetchedProductList.forEach {
+                Log.w(TAG, "Play did not return product '${it.productId}': ${it.statusCode}")
             }
             if (details.isEmpty()) {
                 // The products are not live in the Play Console yet, or this
@@ -115,14 +137,17 @@ class Billing(
 
     /** Launch Play's purchase sheet for one tier. */
     fun buy(tier: Tier) {
+        val product = BillingFlowParams.ProductDetailsParams.newBuilder()
+            .setProductDetails(tier.details)
+            .apply {
+                // Required for a product priced through a purchase option;
+                // absent for one carrying its price directly, where passing a
+                // blank token would be rejected.
+                tier.offerToken?.takeIf { it.isNotBlank() }?.let { setOfferToken(it) }
+            }
+            .build()
         val params = BillingFlowParams.newBuilder()
-            .setProductDetailsParamsList(
-                listOf(
-                    BillingFlowParams.ProductDetailsParams.newBuilder()
-                        .setProductDetails(tier.details)
-                        .build(),
-                ),
-            )
+            .setProductDetailsParamsList(listOf(product))
             .build()
         val result = client.launchBillingFlow(activity, params)
         if (result.responseCode != BillingClient.BillingResponseCode.OK) {
@@ -183,14 +208,26 @@ class Billing(
          * rather than the formatted string keeps that true in every currency.
          */
         fun sortTiers(details: List<ProductDetails>): List<Tier> =
-            details.sortedBy { it.oneTimePurchaseOfferDetails?.priceAmountMicros ?: Long.MAX_VALUE }
-                .map {
+            details.mapNotNull { product -> product to offerFor(product) }
+                .sortedBy { (_, offer) -> offer?.priceAmountMicros ?: Long.MAX_VALUE }
+                .map { (product, offer) ->
                     Tier(
-                        id = it.productId,
-                        label = "${emojiFor(it.productId)}  ${it.name}",
-                        price = it.oneTimePurchaseOfferDetails?.formattedPrice.orEmpty(),
-                        details = it,
+                        id = product.productId,
+                        label = "${emojiFor(product.productId)}  ${product.name}",
+                        price = offer?.formattedPrice.orEmpty(),
+                        details = product,
+                        offerToken = offer?.offerToken,
                     )
                 }
+
+        /**
+         * The purchase option to charge for, preferring the list Play returns
+         * for products defined with purchase options and falling back to the
+         * price carried directly on older products. A tip has exactly one
+         * option, so the first is the right one.
+         */
+        private fun offerFor(product: ProductDetails): ProductDetails.OneTimePurchaseOfferDetails? =
+            product.oneTimePurchaseOfferDetailsList?.firstOrNull()
+                ?: product.oneTimePurchaseOfferDetails
     }
 }

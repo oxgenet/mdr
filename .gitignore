@@ -5,6 +5,14 @@
 .claude/
 /ios/MdrApp/MdrApp.xcodeproj
 
+# Signing material must never be committed: whoever holds the upload key can
+# publish as us. It belongs outside the repository entirely — these patterns
+# are a backstop for the day someone drops one in by accident.
+*.jks
+*.p12
+*.keystore
+keystore.properties
+
 # Android shell: Gradle output, IDE state, and the Rust cdylib that
 # `:app:buildRustCore` cross-compiles into the source tree.
 /android/.gradle/

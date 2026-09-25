@@ -1038,6 +1038,36 @@ mod tests {
     }
 
     #[test]
+    fn viewport_lets_the_reader_pinch_zoom() {
+        // A large Mermaid diagram shrinks to fit the screen, so zooming is the
+        // only way to read its labels. Both WKWebView and Android's WebView
+        // honour the page's viewport here, so `user-scalable=no` or a
+        // `maximum-scale` added later would silently disable the gesture on
+        // every phone — with nothing failing to show it.
+        let html = build_html("<p>x</p>", &[], "", "", &ViewOptions::default());
+        assert!(html.contains(r#"name="viewport""#), "no viewport meta");
+        for blocker in ["user-scalable=no", "user-scalable=0", "maximum-scale"] {
+            assert!(!html.contains(blocker), "viewport disables zoom via {}", blocker);
+        }
+    }
+
+    #[test]
+    fn a_small_diagram_is_not_stretched_to_full_width() {
+        // mermaid-rs-renderer gives every diagram a width attribute and a
+        // viewBox. Capping with max-width shrinks the oversized ones while a
+        // two-node flowchart keeps its own size; `width: 100%` blew it across
+        // the whole column.
+        let html = build_html("<p>x</p>", &[], "", "", &ViewOptions::default());
+        // `format!` has already collapsed the doubled braces by this point, so
+        // the rendered CSS carries single ones.
+        assert!(html.contains(".content svg { max-width: 100%"), "svg sizing rule changed");
+        assert!(
+            !html.contains(".content svg { width: 100%"),
+            "diagrams are being stretched to the full column again",
+        );
+    }
+
+    #[test]
     fn build_html_sets_lang_attribute_when_given() {
         let html = build_html("<p>x</p>", &[], "", "zh-Hant", &ViewOptions::default());
         assert!(html.contains("<html lang=\"zh-Hant\">"));

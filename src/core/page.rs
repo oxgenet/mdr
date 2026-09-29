@@ -1105,6 +1105,42 @@ mod tests {
         assert!(js.contains("setAttribute('lang', \"ko\")"));
     }
 
+    /// Every scheme the policy rejects must actually be rejected here.
+    ///
+    /// `resolve_local_images` used to consult `check_image_url` only for
+    /// http(s), so `ftp:` and friends missed the check, failed to resolve as a
+    /// relative path, and were emitted to the page unchanged. The fixture
+    /// suite catches this end to end; this pins it at the unit level, where
+    /// the failure names the scheme.
+    #[test]
+    fn images_with_an_unsupported_scheme_are_blocked() {
+        let _guard = crate::core::urlpolicy::lock_policy_for_test();
+        let html = r#"<p><img src="ftp://example.com/a.png" alt="a"><img src="gopher://example.com/b.png" alt="b"></p>"#;
+        let out = resolve_local_images(html, std::path::Path::new("."));
+        assert!(!out.contains(r#"src="ftp://"#), "ftp reached the page: {out}");
+        assert!(!out.contains(r#"src="gopher://"#), "gopher reached the page: {out}");
+        assert_eq!(out.matches("img-blocked").count(), 2, "both should be placeholders: {out}");
+    }
+
+    /// data: and file: are deliberately exempt, and must stay that way — this
+    /// is the sort of carve-out a later tidy-up removes by accident.
+    ///
+    /// Note while you are here: a scheme with no `://` — `javascript:`,
+    /// `mailto:` — still reaches the page untouched, because
+    /// `check_image_url` treats anything without `://` as a relative path and
+    /// allows it. That is not a hole worth closing: an `<img src>` does not
+    /// execute a `javascript:` URL in any current engine, and the vector that
+    /// does matter, a link `href`, is guarded in the page template.
+    #[test]
+    fn data_and_file_urls_are_left_alone() {
+        let _guard = crate::core::urlpolicy::lock_policy_for_test();
+        let html = r#"<p><img src="data:image/png;base64,AAAA" alt="a"><img src="file:///tmp/b.png" alt="b"></p>"#;
+        let out = resolve_local_images(html, std::path::Path::new("."));
+        assert!(out.contains("data:image/png;base64,AAAA"), "data URI was altered: {out}");
+        assert!(out.contains("file:///tmp/b.png"), "file URL was altered: {out}");
+        assert!(!out.contains("img-blocked"), "neither should be blocked: {out}");
+    }
+
     #[test]
     fn remote_images_follow_policy() {
         // `urlpolicy::tests::switches` flips the same process-global policy.

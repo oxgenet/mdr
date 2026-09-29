@@ -84,7 +84,9 @@ fn colliding_headings_produce_colliding_anchors() {
     // gets two entries pointing at one anchor. Documented rather than fixed:
     // changing it would move every existing anchor.
     let html = render("e2e/markdown.md");
-    assert_eq!(html.matches(r#"href="#setup""#).count(), 2, "expected two TOC entries for Setup");
+    // `r#"..."#` cannot hold `href="#`: the `"#` closes the literal early, so
+    // this needs the longer delimiter.
+    assert_eq!(html.matches(r##"href="#setup""##).count(), 2, "expected two TOC entries for Setup");
 }
 
 #[test]

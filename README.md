@@ -1,6 +1,6 @@
 # Windows rendering screenshots
 
-Latest: commit c1b33a1
+Latest: commit 74532b8
 
 ## en-image
 

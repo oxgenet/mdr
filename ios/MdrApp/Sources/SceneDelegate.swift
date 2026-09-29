@@ -42,15 +42,31 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
     }
 
+    /// The App Group the Share Extension writes into. One spelling, shared
+    /// with `ShareViewController.appGroup`; they must agree or nothing arrives.
+    static let appGroup = "group.net.oxge.mdr"
+
     /// Files dropped by the Share Extension into the App Group Inbox are moved
     /// into Documents (so they show in the browser) and the newest one is opened.
     func sceneDidBecomeActive(_ scene: UIScene) {
-        guard let browser = window?.rootViewController as? DocumentBrowserViewController,
-              let group = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.net.oxge.mdr") else { return }
+        guard let browser = window?.rootViewController as? DocumentBrowserViewController else { return }
+        if let url = Self.importShareInbox(), browser.presentedViewController == nil {
+            browser.open(url: url, presentImmediately: false)
+        }
+    }
+
+    /// Drain the Share Extension's Inbox into Documents, returning the newest
+    /// arrival. Separated from the scene callback so it can be tested: the
+    /// extension itself cannot run under XCTest, but this half — the half that
+    /// decides whether a shared file is ever seen again — can.
+    @discardableResult
+    static func importShareInbox(groupID: String = SceneDelegate.appGroup,
+                                 documents: URL? = nil) -> URL? {
+        guard let group = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupID) else { return nil }
         let inbox = group.appendingPathComponent("Inbox", isDirectory: true)
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let docs = documents ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         guard let files = try? FileManager.default.contentsOfDirectory(at: inbox, includingPropertiesForKeys: [.contentModificationDateKey]),
-              !files.isEmpty else { return }
+              !files.isEmpty else { return nil }
         var newest: URL?
         for f in files.sorted(by: { ($0.lastPathComponent) < ($1.lastPathComponent) }) {
             var dest = docs.appendingPathComponent(f.lastPathComponent)
@@ -64,9 +80,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 newest = dest
             }
         }
-        if let url = newest, browser.presentedViewController == nil {
-            browser.open(url: url, presentImmediately: false)
-        }
+        return newest
     }
 
     /// Opened from Files / share sheet while already running.

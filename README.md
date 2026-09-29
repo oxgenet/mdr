@@ -301,8 +301,12 @@ search bar with match count and highlights, insert a photo from the library
 (`WKWebView.createPDF`, CJK fonts and vector Mermaid preserved).
 
 The Share Extension (`ios/MdrShare`) appears in other apps' share sheets and
-hands text / files to the app through the App Group `group.net.oxge.mdr`.
-App Groups need a signed build, so on an unsigned simulator build the
+hands text, files and web links to the app through the App Group
+`group.net.oxge.mdr`. A shared link to a `.md` or `.txt` file is fetched; any
+other page becomes a note holding its title and URL, because mdr renders
+Markdown and does not scrape HTML. Nothing opens immediately: an extension
+cannot launch its host app, so items wait in the Inbox until mdr is next
+opened. App Groups need a signed build, so on an unsigned simulator build the
 extension launches but cannot deliver the file.
 
 Device / TestFlight builds need an Apple Developer Team ID:

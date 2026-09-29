@@ -151,6 +151,8 @@ targets:
     sources:
       - path: ../MdrShare
         excludes: ["*.entitlements"]
+      - path: ../MdrShare/Resources
+        buildPhase: resources
     entitlements:
       path: ../MdrShare/MdrShare.entitlements
       properties:
@@ -169,6 +171,13 @@ targets:
             NSExtensionActivationRule:
               NSExtensionActivationSupportsText: true
               NSExtensionActivationSupportsFileWithMaxCount: 1
+              # Safari (and most browsers and read-later apps) offer a page as
+              # a web URL, not as text or a file. Without this key mdr never
+              # appears in their share sheet at all — which is why
+              # "share from Safari" could not be tested: there was nothing to
+              # tap. A link to a .md/.txt file is fetched; anything else is
+              # saved as a note holding the title and the link.
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.oxge.mdr.share
@@ -187,6 +196,10 @@ targets:
     platform: iOS
     sources:
       - path: ../MdrAppTests
+      # The Share Extension's payload logic is tested here rather than in a
+      # target of its own: an app-extension bundle cannot host XCTest, and the
+      # decisions worth testing are pure functions anyway.
+      - path: ../MdrShare/ShareIntake.swift
       # SKTestSession(configurationFileNamed:) looks in the bundle of the code
       # that calls it, which is the test bundle — not the app's. The app target
       # gets its own copy so a manual Run shows the tiers too.

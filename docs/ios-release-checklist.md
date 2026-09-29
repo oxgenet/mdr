@@ -212,9 +212,20 @@ screenshots cannot be submitted.
 
 ## 8. Still unverified
 
-- **The Share Extension has never run.** App Groups do not work on an unsigned
-  simulator build, so the first signed device install is its first real test.
-  Check share-to-mdr from Safari or Files once it installs.
+- ~~**The Share Extension has never run.**~~ **Verified on an iPhone 15,
+  2026-09-29.** It had in fact never *appeared*: the activation rule accepted
+  text and files but not web URLs, so mdr was absent from Safari's share sheet
+  and there was nothing to tap. With
+  `NSExtensionActivationSupportsWebURLWithMaxCount` added, sharing a page from
+  Safari lands a note in the Inbox, and sharing a link to a `.md` file
+  downloads and renders it. mdr appeared in the front row of the share sheet
+  with no "View More" and no toggle to enable.
+
+  The shared file does **not** open mdr by itself — an app extension cannot
+  launch its host app. It waits in the App Group Inbox until mdr is next
+  opened, which is what `SceneDelegate.importShareInbox()` drains. That is the
+  designed behaviour, not a defect; `ShareInboxTests` covers the drain and
+  skips on the simulator, where the App Group container is nil.
 - **The purchase flow on a real storefront**, which needs §3 and §4 first.
 - **The device build itself.** It has never been installed on hardware. Note
   that until 2026-09-18 the device archive linked no Rust core at all (it
@@ -241,4 +252,4 @@ screenshots cannot be submitted.
 | First TestFlight upload | **build 111 uploaded, processed `VALID`** |
 | Build 111 beta state | internal `IN_BETA_TESTING`, external `READY_FOR_BETA_SUBMISSION` |
 | Purchase path verified locally | **no — skips under xcodebuild, see §6** |
-| Anything run on real hardware | **no — share extension and rendering still untested** |
+| Anything run on real hardware | yes — rendering, purchases, and the Share Extension (2026-09-29, iPhone 15) |

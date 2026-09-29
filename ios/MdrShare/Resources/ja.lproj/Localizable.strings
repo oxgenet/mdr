@@ -1,0 +1,2 @@
+/* Shown while the Share Extension writes the shared item into mdr's inbox. */
+"share_saving" = "mdr に保存しています…";

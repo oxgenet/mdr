@@ -10,6 +10,14 @@ pub struct TocEntry {
 
 /// Extract table of contents entries from markdown content.
 pub fn extract_toc(content: &str) -> Vec<TocEntry> {
+    // Drop the front matter first, exactly as `parse_markdown` does.
+    //
+    // Without this the closing `---` turns the whole block into a setext H2
+    // — CommonMark reads "paragraph, then a line of dashes" as a heading — so
+    // every document with front matter opened its table of contents with a
+    // row reading "title: …lang: …author: …". The body was already stripped,
+    // so the two disagreed, and only the sidebar showed it.
+    let (_, content) = crate::core::lang::split_front_matter(content);
     let arena = Arena::new();
     let mut options = Options::default();
     options.extension.strikethrough = true;
@@ -74,6 +82,33 @@ fn slugify(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// Front matter must not become a heading.
+    ///
+    /// The closing `---` makes CommonMark read the block above it as a setext
+    /// H2, so it used to arrive in the table of contents as one run-together
+    /// row — visible in the app's TOC sheet while the rendered body, which
+    /// strips front matter, showed nothing of it.
+    #[test]
+    fn front_matter_is_not_a_heading() {
+        let entries = extract_toc("---\ntitle: T\nlang: zh-Hant\nauthor: A\n---\n\n# Real\n\n## Sub\n");
+        assert_eq!(
+            entries.iter().map(|e| e.text.as_str()).collect::<Vec<_>>(),
+            vec!["Real", "Sub"],
+            "front matter leaked into the table of contents"
+        );
+    }
+
+    /// A horizontal rule after a paragraph is still a setext heading in
+    /// CommonMark, and that is not ours to change — only the front matter is.
+    #[test]
+    fn a_setext_heading_in_the_body_still_counts() {
+        let entries = extract_toc("Real heading\n---\n\ntext\n");
+        assert_eq!(entries.len(), 1, "a genuine setext heading was dropped");
+        assert_eq!(entries[0].text, "Real heading");
+        assert_eq!(entries[0].level, 2);
+    }
+
     use super::*;
 
     // --- slugify tests ---

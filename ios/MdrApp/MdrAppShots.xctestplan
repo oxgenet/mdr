@@ -1,0 +1,34 @@
+{
+  "configurations": [
+    {
+      "id": "7F3C1A92-6E0D-4B55-A1C8-2D9E4B7A0F31",
+      "name": "Screenshots",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "codeCoverage": true,
+    "targetForVariableExpansion": {
+      "containerPath": "container:MdrApp.xcodeproj",
+      "identifier": "49312BDF82246D79827BE358",
+      "name": "MdrApp"
+    }
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:MdrApp.xcodeproj",
+        "identifier": "B64ACA447F7CABF94309BD85",
+        "name": "MdrAppTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:MdrApp.xcodeproj",
+        "identifier": "8DEC1653A1650CFA2B1DAB22",
+        "name": "MdrUITests"
+      }
+    }
+  ],
+  "version": 1
+}

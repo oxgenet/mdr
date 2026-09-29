@@ -245,3 +245,23 @@ targets:
         TEST_TARGET_NAME: MdrApp
         ARCHS: arm64
         "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
+
+# A scheme just for App Store screenshots.
+#
+# It exists because the MdrApp scheme sets a StoreKit configuration on its run
+# action, and the test action inherits that — so the Support section rendered
+# tip prices from the local test catalogue. Those are not what Apple charges,
+# and a store page advertising the wrong price is a problem of its own. This
+# scheme sets no StoreKit configuration, so the section shows its real
+# unavailable state and no invented price can reach the listing.
+schemes:
+  MdrAppShots:
+    build:
+      targets:
+        MdrApp: all
+        MdrUITests: [test]
+    test:
+      config: Debug
+      testPlans:
+        - path: MdrAppShots.xctestplan
+          defaultPlan: true

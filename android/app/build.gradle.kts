@@ -120,6 +120,11 @@ android {
         getByName("main").java.srcDirs("src/main/kotlin")
         getByName("test").java.srcDirs("src/test/kotlin")
         getByName("androidTest").java.srcDirs("src/androidTest/kotlin")
+        // The shared end-to-end fixtures ride into the test APK, so the same
+        // documents the Rust tests render are also rendered through JNI on a
+        // device. Copying them into the Android tree instead would let the two
+        // sets drift apart silently.
+        getByName("androidTest").assets.srcDir(File(repoRoot, "tests/samples/e2e"))
     }
 
     testOptions {

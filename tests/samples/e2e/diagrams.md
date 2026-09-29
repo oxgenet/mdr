@@ -181,7 +181,60 @@ graph TD
     D --> E
 ```
 
-## 10. Gantt
+## 10. Degenerate blocks
+
+Each of these must fail visibly and locally — an error or the raw source —
+without stopping the rest of the document from rendering.
+
+An empty mermaid block:
+
+```mermaid
+```
+
+Whitespace only:
+
+```mermaid
+   
+```
+
+Syntax that is not Mermaid at all:
+
+```mermaid
+this is not a diagram %%% !@#$ <>
+```
+
+A known diagram type with a broken body:
+
+```mermaid
+sequenceDiagram
+    participant
+    -->>
+```
+
+A label containing characters that have to survive into SVG text:
+
+```mermaid
+graph LR
+    A["Quotes \"x\" & ampersand"] --> B["<tag> and 'apostrophe'"]
+    B --> C["日本語 ☕ 🚀"]
+```
+
+A very wide single row, to force horizontal scrolling on a phone:
+
+```mermaid
+graph LR
+    A1[Step one] --> A2[Step two] --> A3[Step three] --> A4[Step four] --> A5[Step five] --> A6[Step six] --> A7[Step seven] --> A8[Step eight] --> A9[Step nine] --> A10[Step ten]
+```
+
+A very tall single column:
+
+```mermaid
+graph TD
+    B1[One] --> B2[Two] --> B3[Three] --> B4[Four] --> B5[Five]
+    B5 --> B6[Six] --> B7[Seven] --> B8[Eight] --> B9[Nine] --> B10[Ten]
+```
+
+## 11. Gantt
 
 ```mermaid
 gantt

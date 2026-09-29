@@ -378,7 +378,7 @@ graph TD
 Supported diagram types: flowchart, sequence, pie, class, state, ER, gantt.
 
 Diamond/decision nodes (`{text}`) render correctly as of mermaid-rs-renderer
-0.2.2 — the note that previously said otherwise was stale. `tests/samples/mermaid/complex.md`
+0.2.2 — the note that previously said otherwise was stale. `tests/samples/e2e/diagrams.md`
 exercises each supported diagram type, and anything the Rust renderer cannot
 draw falls back to the bundled mermaid.js rather than failing.
 

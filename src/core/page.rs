@@ -676,7 +676,12 @@ body.editing #kebab-menu button.editor-only {{ display: block; }}
     document.querySelector('.content').addEventListener('click', function(e) {{
         var a = e.target.closest('a[href]'); if (!a) return;
         var href = a.getAttribute('href');
-        if (!href || href.charAt(0) === '#' || /^[a-z][a-z0-9+.-]*:/i.test(href)) return;
+        if (!href) return;
+        // A document can carry any href it likes, and the shells expose an ipc
+        // bridge to page scripts, so a javascript: link could reach it. These
+        // schemes are refused outright rather than handed to the browser.
+        if (/^\s*(javascript|data|vbscript):/i.test(href)) {{ e.preventDefault(); return; }}
+        if (href.charAt(0) === '#' || /^[a-z][a-z0-9+.-]*:/i.test(href)) return;
         e.preventDefault();
         post({{cmd: 'open', text: href}});
     }});

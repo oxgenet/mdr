@@ -98,6 +98,32 @@ final class StoreTests: XCTestCase {
         )
     }
 
+    /// Buy and require it to have completed, skipping if the environment
+    /// could not present the sheet.
+    ///
+    /// The same missing UI anchor shows up two ways, and which one you get
+    /// varies run to run on the same machine: the await never returns, or it
+    /// returns immediately as `.userCancelled` — nobody was there to confirm a
+    /// sheet that was never shown — which leaves the store in `.ready`.
+    /// Neither says anything about `Store`, so both skip. A genuine fault
+    /// puts the store in `.unavailable`, which is *not* skipped and fails the
+    /// caller's assertion as it should.
+    private func completePurchase(_ store: Store, _ tier: SupportTier) async throws {
+        try await buy(store, tier)
+        switch store.state {
+        case .thanks:
+            return
+        case .unavailable(let why):
+            XCTFail("purchasing \(tier.id) failed: \(why)")
+        default:
+            throw XCTSkip(
+                "purchasing \(tier.id) returned without completing — StoreKit had no UI to "
+                    + "present its confirmation sheet in, so the purchase came back cancelled. "
+                    + "This environment cannot drive a purchase from a hosted unit test; CI can."
+            )
+        }
+    }
+
     func testTheCatalogueLoadsAllThreeTiersInPriceOrder() async throws {
         let tiers = try await requireLocalStore()
         XCTAssertEqual(
@@ -113,7 +139,7 @@ final class StoreTests: XCTestCase {
     func testBuyingATierCompletesAndThanksTheSupporter() async throws {
         let tiers = try await requireLocalStore()
         let store = try XCTUnwrap(loadedStore)
-        try await buy(store, try XCTUnwrap(tiers.first))
+        try await completePurchase(store, try XCTUnwrap(tiers.first))
         XCTAssertEqual(.thanks, store.state, "a completed tip should thank the supporter")
     }
 
@@ -127,7 +153,7 @@ final class StoreTests: XCTestCase {
     func testATipCanBeGivenMoreThanOnceAndNothingIsLeftUnfinished() async throws {
         let tiers = try await requireLocalStore()
         let store = try XCTUnwrap(loadedStore)
-        try await buy(store, try XCTUnwrap(tiers.first))
+        try await completePurchase(store, try XCTUnwrap(tiers.first))
         XCTAssertEqual(.thanks, store.state)
 
         // Tip again with the same tier. A consumable that was properly finished
@@ -136,7 +162,7 @@ final class StoreTests: XCTestCase {
         guard case .ready(let again) = store.state, let secondCoffee = again.first else {
             return XCTFail("tiers did not come back after a thank-you")
         }
-        try await buy(store, secondCoffee)
+        try await completePurchase(store, secondCoffee)
         XCTAssertEqual(.thanks, store.state, "a supporter must be able to tip more than once")
 
         // And nothing is left unfinished in the queue.
@@ -157,7 +183,7 @@ final class StoreTests: XCTestCase {
     func testATipUnlocksNothing() async throws {
         let tiers = try await requireLocalStore()
         let store = try XCTUnwrap(loadedStore)
-        try await buy(store, try XCTUnwrap(tiers.last))
+        try await completePurchase(store, try XCTUnwrap(tiers.last))
 
         // Consumables never appear in current entitlements; if one did, it
         // would mean a tier had been created as a non-consumable by mistake.

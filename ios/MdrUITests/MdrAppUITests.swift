@@ -66,6 +66,28 @@ final class MdrAppUITests: XCTestCase {
         )
     }
 
+    /// Focus the source editor and type into it.
+    ///
+    /// `typeText` fails outright if nothing has keyboard focus, and tapping
+    /// only *places the caret* — the keyboard can lag behind, more so now that
+    /// the fixture is a long document rather than 292 bytes. Wait for the
+    /// keyboard, and tap once more if it has not arrived.
+    private func typeIntoEditor(_ text: String, file: StaticString = #filePath, line: UInt = #line) {
+        let editor = app.textViews["sourceEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 15), "the source editor did not open",
+                      file: file, line: line)
+        editor.tap()
+        if !app.keyboards.element.waitForExistence(timeout: 10) {
+            editor.tap()
+            XCTAssertTrue(
+                app.keyboards.element.waitForExistence(timeout: 10),
+                "the editor never took keyboard focus, so nothing could be typed",
+                file: file, line: line
+            )
+        }
+        editor.typeText(text)
+    }
+
     /// Tap a navigation-bar button, reaching into the "More" overflow if iOS
     /// has collapsed it there.
     ///
@@ -177,12 +199,8 @@ final class MdrAppUITests: XCTestCase {
         launchWithDocument()
         tapBarButton("editButton")
 
-        let editor = app.textViews["sourceEditor"]
-        XCTAssertTrue(editor.waitForExistence(timeout: 10), "the source editor did not open")
-
         let marker = "LivePreviewMarker\(Int.random(in: 1000...9999))"
-        editor.tap()
-        editor.typeText("\n\n\(marker)\n")
+        typeIntoEditor("\n\n\(marker)\n")
 
         // refreshPreview() is debounced by 0.3s, then the core re-renders and
         // the JS swaps the body in.
@@ -200,12 +218,8 @@ final class MdrAppUITests: XCTestCase {
         launchWithDocument()
         tapBarButton("editButton")
 
-        let editor = app.textViews["sourceEditor"]
-        XCTAssertTrue(editor.waitForExistence(timeout: 10), "the source editor did not open")
-
         let marker = "AutosaveMarker\(Int.random(in: 1000...9999))"
-        editor.tap()
-        editor.typeText("\n\n\(marker)\n")
+        typeIntoEditor("\n\n\(marker)\n")
 
         // Leave edit mode, then close the document — both call save().
         tapBarButton("editButton")
@@ -257,10 +271,7 @@ final class MdrAppUITests: XCTestCase {
         let marker = "Zq\(Int.random(in: 1000...9999))"
 
         tapBarButton("editButton")
-        let editor = app.textViews["sourceEditor"]
-        XCTAssertTrue(editor.waitForExistence(timeout: 10), "the source editor did not open")
-        editor.tap()
-        editor.typeText("\n\n\(marker)\n\n\(marker)\n")
+        typeIntoEditor("\n\n\(marker)\n\n\(marker)\n")
 
         let echoed = app.webViews["documentPage"].staticTexts[marker]
         XCTAssertTrue(echoed.waitForExistence(timeout: 15), "the planted text never reached the preview")

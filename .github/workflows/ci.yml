@@ -238,8 +238,13 @@ jobs:
       # seeds the fixture and runs both suites: MdrAppTests (the Rust core
       # across the C ABI, mirroring the Android instrumented tests) and
       # MdrUITests (the app driven through its UI).
+      # The shared e2e fixtures, the same documents tests/fixtures.rs renders on
+      # every platform and Android's FixtureRenderTest renders through JNI.
+      # markdown.md declares `lang: zh-Hant` in front matter, which detection
+      # would never pick for its content, so this asserts the override; ja.md
+      # is seeded alongside it and FixtureRenderTests asserts detection itself.
       - name: Build and test the iOS shell
-        run: MDR_EXPECT_LANG=ja ./ios/build-app.sh tests/samples/lang/ja.md
+        run: MDR_EXPECT_LANG=zh-Hant ./ios/build-app.sh tests/samples/e2e/markdown.md
 
       - name: Upload test results
         if: always()

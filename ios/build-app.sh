@@ -18,7 +18,12 @@ set -euo pipefail
 export PATH="/opt/homebrew/opt/rustup/bin:/opt/homebrew/bin:$PATH"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MD="${1:-$ROOT/tests/samples/lang/ja.md}"
+# The e2e fixture. Defaults to the shared set in tests/samples/e2e, the same
+# documents tests/fixtures.rs renders on every platform and Android's
+# FixtureRenderTest renders through JNI. The old default, samples/lang/ja.md,
+# was 292 bytes of plain text: it proved a document reached the screen and
+# almost nothing else.
+MD="${1:-$ROOT/tests/samples/e2e/markdown.md}"
 DEVICE_NAME="${2:-}"
 OUT="$ROOT/target/ios-app"
 BUNDLE_ID=net.oxge.mdr
@@ -91,12 +96,23 @@ xcrun simctl install "$UDID" "$OUT/MdrApp.app"
 # The test runner has its own sandbox and cannot write into the app's, so the
 # fixture is seeded from here. simctl install preserves the data container, so
 # this survives the reinstall that `test-without-building` does.
-echo "== seed document into the app's Documents (visible in Files > On My iPhone > mdr)"
+echo "== seed documents into the app's Documents (visible in Files > On My iPhone > mdr)"
 CONTAINER=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
-mkdir -p "$CONTAINER/Documents"
-cp "$MD" "$CONTAINER/Documents/"
-for f in "$(dirname "$MD")"/*.png "$(dirname "$MD")"/*.svg; do [ -f "$f" ] && cp "$f" "$CONTAINER/Documents/" || true; done
+DOCS="$CONTAINER/Documents"
+rm -rf "$DOCS" && mkdir -p "$DOCS"
+# Copy the fixture's whole directory, not just its siblings. The e2e fixtures
+# keep their images in assets/, and a flat glob of *.png/*.svg would silently
+# leave every local image missing — images.md would then render as if the
+# embedding had broken, which reads as a regression rather than a setup bug.
+cp -R "$(dirname "$MD")"/. "$DOCS"/
+# ja.md as well, so content detection still has an end-to-end case: the chosen
+# fixture proves front matter *overrides* detection, which is a different
+# thing from detection working at all.
+cp "$ROOT/tests/samples/lang/ja.md" "$DOCS/" 2>/dev/null || true
 NAME=$(basename "$MD")
+echo "   fixture: $NAME"
+echo "   seeded:  $(cd "$DOCS" && ls | tr '\n' ' ')"
+[ -d "$DOCS/assets" ] && echo "   assets:  $(cd "$DOCS/assets" && ls | tr '\n' ' ')" || echo "   assets:  (none)"
 
 # Xcode forwards TEST_RUNNER_-prefixed variables into the test processes with
 # the prefix stripped. MDR_EXPECT_LANG is the same knob the old script had.

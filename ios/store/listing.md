@@ -289,8 +289,8 @@ does not.
 Paste into App Review Information → Notes:
 
 ```
-mdr is a Markdown document reader. No account or sign-in is required — open any
-.md file from Files, or use the bundled sample, to see the full app.
+mdr is a paid Markdown document reader. No account or sign-in is required —
+open any .md file from Files, or use the bundled sample, to see the whole app.
 
 The app is free. In-app purchases: the three items are optional tips ("Support
 the Developer"). They are consumables and unlock nothing; every feature of the
@@ -307,6 +307,25 @@ Demo account: not required. Leave the sign-in fields empty.
 are `READY_TO_SUBMIT`, and first-time purchases are reviewed alongside the
 build. If they are not attached to this version, they are not reviewed, and
 the tip jar ships dead.
+
+The attach is per-purchase and is *not* done from the version page: open each
+in-app purchase and press **Add for Review**. That creates (or joins) a draft
+review submission. The app version then joins the same submission — in the UI
+by submitting the version normally, or over the API with
+
+```
+POST /v1/reviewSubmissionItems   { reviewSubmission: <draft>, appStoreVersion: <version> }
+PATCH /v1/reviewSubmissions/<draft>   { submitted: true }
+```
+
+`POST /v1/inAppPurchaseSubmissions` is the wrong endpoint for a first version:
+it answers `STATE_ERROR.INVALID_REQUEST_ENTITY_STATE_INVALID` until the app is
+already live. Verify afterwards that all four items read `WAITING_FOR_REVIEW`;
+the version can reach review on its own with the purchases left behind.
+
+Review notes and the description *can* be edited while the version sits in
+`WAITING_FOR_REVIEW` — `PATCH` both and the version stays in review. Pulling
+the submission back is not necessary for a wording change.
 
 ---
 

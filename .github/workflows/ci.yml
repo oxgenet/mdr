@@ -127,6 +127,19 @@ jobs:
           name: mdr-android-debug.apk
           path: android/app/build/outputs/apk/debug/*.apk
 
+      # The Rust core on its own, because a release build is assembled on a
+      # machine that may not be able to run Cargo at all. Without this the
+      # only way to get a current libmdr.so was to ask someone with a working
+      # toolchain, and the shipped Android build repeatedly ended up older
+      # than main — carrying fixes that were green in CI but absent from the
+      # artifact anyone could install.
+      - name: Upload the Rust core for both ABIs
+        uses: actions/upload-artifact@v4
+        with:
+          name: libmdr-android
+          path: android/app/src/main/jniLibs/*/libmdr.so
+          if-no-files-found: error
+
   android-instrumented:
     name: Android instrumented tests (emulator)
     runs-on: ubuntu-latest

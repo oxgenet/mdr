@@ -198,6 +198,18 @@ account on the device under Settings → App Store → Sandbox Account.
 - **Privacy policy**: https://oxgenet.github.io/mdr/privacy-policy — App Store
   Connect requires the URL on the listing. mdr collects nothing.
 
+## 7b. The store listing
+
+Written out in full in `ios/store/listing.md` — subtitle, promotional text,
+keywords, description and What's New in both en-US and ja, plus the age
+rating and App Privacy answers with the reasoning behind each, the review
+notes, and the screenshot sizes.
+
+The one item there that needs a machine is the screenshots, and the trap is
+that the app is universal (`TARGETED_DEVICE_FAMILY: "1,2"`), so **iPad 13"
+screenshots are required alongside iPhone 6.9"**. A listing with only iPhone
+screenshots cannot be submitted.
+
 ## 8. Still unverified
 
 - **The Share Extension has never run.** App Groups do not work on an unsigned

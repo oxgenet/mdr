@@ -101,6 +101,23 @@ pub fn resolve_local_images(html: &str, base_dir: &std::path::Path) -> String {
             vlog!("    → skipped (data/file URL)");
             return full_tag.to_string();
         }
+        // Any other scheme — ftp:, ws:, something invented — is not a relative
+        // path, so it must not fall through to the file-embedding branch below,
+        // where it would fail to resolve and be emitted unchanged. urlpolicy
+        // rejects everything that is not http(s); this is what makes its
+        // documented "other schemes are blocked" actually true, rather than
+        // leaving the CSP as the only thing stopping the load.
+        static RE_SCHEME: OnceLock<regex::Regex> = OnceLock::new();
+        let re_scheme = RE_SCHEME.get_or_init(|| regex::Regex::new(r"(?i)^[a-z][a-z0-9+.\-]*:").unwrap());
+        if re_scheme.is_match(src) {
+            if let crate::core::urlpolicy::Verdict::Block(reason) =
+                crate::core::urlpolicy::check_image_url(src)
+            {
+                vlog!("    → BLOCKED ({}): {}", reason, src);
+                return blocked_image_placeholder(src, reason);
+            }
+            return full_tag.to_string();
+        }
         // URL-decode the src path (comrak may percent-encode spaces etc.)
         let decoded_src = percent_decode(src);
         // Resolve relative path

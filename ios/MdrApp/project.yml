@@ -191,6 +191,14 @@ targets:
       # that calls it, which is the test bundle — not the app's. The app target
       # gets its own copy so a manual Run shows the tiers too.
       - path: Mdr.storekit
+      # The shared e2e fixtures ride into the test bundle as a folder
+      # reference, so assets/ keeps its shape. Android does the same with its
+      # test APK. Without this the fixture tests depend on build-app.sh having
+      # seeded the *simulator's* app container, which means they cannot run on
+      # a device at all — nine failures that say nothing about the code.
+      - path: ../../tests/samples/e2e
+        type: folder
+        buildPhase: resources
     dependencies:
       - target: MdrApp
       # SKTestSession lives in StoreKitTest, not StoreKit. It serves

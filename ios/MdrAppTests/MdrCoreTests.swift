@@ -226,10 +226,14 @@ final class MdrCoreTests: XCTestCase {
             "the app has no Documents directory"
         )
         let url = docs.appendingPathComponent(name)
-        let markdown = try XCTUnwrap(
-            try? String(contentsOf: url, encoding: .utf8),
-            "\(name) was not seeded into the app's Documents directory at \(url.path)"
+        // Seeding is a simulator step (`simctl get_app_container`), so a device
+        // run legitimately has no fixture here. Skip rather than fail: the
+        // absence says nothing about the core.
+        try XCTSkipUnless(
+            FileManager.default.fileExists(atPath: url.path),
+            "\(name) is not seeded here — ios/build-app.sh seeds the simulator's container"
         )
+        let markdown = try String(contentsOf: url, encoding: .utf8)
         XCTAssertEqual(
             expected,
             MdrCore.detectLang(markdown: markdown),

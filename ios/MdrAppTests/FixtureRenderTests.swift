@@ -16,12 +16,21 @@ import XCTest
 /// Several fixtures are deliberately malformed. Surviving them is the point.
 final class FixtureRenderTests: XCTestCase {
 
-    /// The app's Documents directory, where build-app.sh seeded the fixtures.
+    /// Where the fixtures are.
+    ///
+    /// Preferred: the copy bundled into this test target from
+    /// `tests/samples/e2e`, which travels with the tests and so works on a
+    /// device as well as a simulator. Falls back to the app's Documents
+    /// directory, where `ios/build-app.sh` seeds them for the UI tests.
     private var docs: URL {
         get throws {
-            try XCTUnwrap(
+            let bundled = Bundle(for: type(of: self)).resourceURL?.appendingPathComponent("e2e")
+            if let bundled, FileManager.default.fileExists(atPath: bundled.path) {
+                return bundled
+            }
+            return try XCTUnwrap(
                 FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
-                "the app has no Documents directory"
+                "no bundled fixtures and the app has no Documents directory"
             )
         }
     }
@@ -98,7 +107,17 @@ final class FixtureRenderTests: XCTestCase {
     /// different claim from detection working at all, and the e2e fixture only
     /// demonstrates the first — so ja.md is seeded alongside it.
     func testContentDetectionStillReachesTheLangAttribute() throws {
-        let html = try render("ja.md")
+        // ja.md is not part of the e2e set; build-app.sh seeds it into
+        // Documents beside them precisely for this check.
+        let seeded = try XCTUnwrap(
+            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        ).appendingPathComponent("ja.md")
+        try XCTSkipUnless(
+            FileManager.default.fileExists(atPath: seeded.path),
+            "ja.md is not seeded here — ios/build-app.sh puts it in Documents; a device run has no such step"
+        )
+        let markdown = try String(contentsOf: seeded, encoding: .utf8)
+        let html = MdrCore.renderPage(markdown: markdown, baseDir: seeded.deletingLastPathComponent().path)
         XCTAssertTrue(
             html.contains(#"<html lang="ja">"#),
             "Japanese content did not resolve to ja through the C ABI"

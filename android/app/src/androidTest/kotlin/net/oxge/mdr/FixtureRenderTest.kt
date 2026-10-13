@@ -71,6 +71,21 @@ class FixtureRenderTest {
      * searching the whole page cannot distinguish "this was rendered" from
      * "this was offered for editing" — front matter belongs in the second.
      */
+    /**
+     * Just the table of contents.
+     *
+     * The sidebar is built from `extract_toc`, which is a separate pass over
+     * the markdown from the one that renders the body — so the two can
+     * disagree, and did: front matter was stripped from the body and left in
+     * the TOC.
+     */
+    private fun tocOf(html: String): String {
+        val start = html.indexOf("""<nav class="sidebar">""")
+        val end = html.indexOf("</nav>", start)
+        assertTrue("page structure changed; the sidebar could not be isolated", start >= 0 && end > start)
+        return html.substring(start, end)
+    }
+
     private fun bodyOf(html: String): String {
         val start = html.indexOf("""<div class="content">""")
         val end = html.indexOf("""<div id="kebab">""", start)
@@ -104,6 +119,25 @@ class FixtureRenderTest {
             bodyOf(html).contains("author: mdr test suite"),
         )
         assertTrue("the editor lost the front matter", html.contains("author: mdr test suite"))
+    }
+
+    @Test
+    fun frontMatterDoesNotReachTheTableOfContents() {
+        // The closing `---` of a front matter block makes CommonMark read the
+        // block above it as a setext H2, so extract_toc used to open every
+        // document's sidebar with "title: ...lang: ...author: ...". The body
+        // was always correct, which is why only a screenshot caught it.
+        //
+        // Pinned here as well as in Rust because this is the assertion that
+        // tells us the *shipped* libmdr.so carries the fix. The core is built
+        // elsewhere and dropped into jniLibs, so "green in CI" and "present in
+        // the artifact" are different claims.
+        val toc = tocOf(render("markdown.md"))
+        for (leaked in listOf("author: mdr test suite", "title:", "lang: zh-Hant")) {
+            assertFalse("front matter leaked into the table of contents: $leaked", toc.contains(leaked))
+        }
+        // The real headings are still there.
+        assertTrue("the table of contents is empty", toc.contains("Markdown edge cases"))
     }
 
     @Test

@@ -21,6 +21,13 @@ measured, not estimated.
 | Content rights | Contains no third-party content |
 | Age rating | 4+ (see §5) |
 | Privacy Policy URL | https://oxgenet.github.io/mdr/privacy-policy |
+| Price | **Free** |
+
+The app is free. The three in-app purchases are optional tips that unlock
+nothing — that is the product concept, not a launch promotion, and the copy
+below leads with it because "free" is the single most load-bearing word on
+the page.
+
 
 The Play listing is "Markdown Reader — mdr". The App Store name is shorter
 because names are globally unique there and the suffix bought nothing; the
@@ -33,28 +40,29 @@ subtitle carries `mdr` instead.
 ### Subtitle (30 max)
 
 ```
-mdr: Mermaid diagrams, offline
+mdr: free, Mermaid, offline
 ```
 
 ### Promotional text (170 max — editable without a new build)
 
 ```
-Mermaid diagrams drawn natively. Pinch to zoom. Japanese, Chinese and Korean typography that looks right. A Rust core, so it opens instantly. Nothing leaves your device.
+Free to use. Mermaid diagrams drawn natively, pinch to zoom, Japanese, Chinese and Korean typography done right. Opens instantly. Nothing leaves your device.
 ```
 
 ### Keywords (100 max, comma-separated, no spaces)
 
 ```
-mermaid,md,diagram,flowchart,sequence,uml,viewer,notes,docs,readme,preview,editor,offline,gfm
+mermaid,md,diagram,flowchart,sequence,uml,viewer,notes,docs,readme,preview,editor,offline,free
 ```
 
 "markdown" and "reader" are deliberately absent: both are already in the app
-name, which Apple indexes. Repeating them wastes the 100 characters.
+name, which Apple indexes. Repeating them wastes the 100 characters. "gfm"
+was dropped for "free", which people actually search for.
 
 ### Description (4000 max)
 
 ```
-Markdown, the way you actually read it.
+Markdown, the way you actually read it. Free, with no ads and no account.
 
 mdr opens a Markdown file and shows you the document — not a text editor, not a browser tab, not a half-rendered preview. Mermaid diagrams are drawn. Tables line up. Japanese, Chinese and Korean text gets the right glyph shapes. It opens instantly, because the renderer is a native Rust core rather than a web app in a wrapper.
 
@@ -71,9 +79,11 @@ WHAT IT DOES
 • Share sheet support: send Markdown to mdr from any app
 • GitHub-flavoured Markdown: tables, task lists, footnotes, strikethrough, fenced code
 
-PRIVACY BY DEFAULT
+FREE, AND PRIVATE BY DEFAULT
 
-mdr collects nothing. No account, no sign-in, no analytics, no tracking, no ads. Documents are rendered on your device.
+mdr is free to use. Every feature listed above is in the app from the moment you install it — there is no trial, no subscription, no paid tier and nothing held back.
+
+It collects nothing either. No account, no sign-in, no analytics, no tracking, no ads. Documents are rendered on your device.
 
 Images that a document links from the web stay off until you turn them on. Plain http is refused for public sites and permitted only for localhost, private addresses and *.local — so a NAS or a development server still works, and nothing else does.
 
@@ -85,15 +95,17 @@ OPEN SOURCE
 
 mdr is MIT-licensed and developed in the open at github.com/oxgenet/mdr, based on the original mdr by Clever Cloud (MIT).
 
-SUPPORTING DEVELOPMENT
+BUYING THE DEVELOPER A COFFEE
 
-Settings includes an optional tip jar. It unlocks nothing — every feature is already in the app. It is there for people who want to say thanks.
+If mdr turns out to be useful, Settings has an optional tip — the price of a coffee, once, if you feel like it.
+
+It unlocks nothing. There is deliberately no feature behind it, no badge, no "supporter" mode, and the app never asks twice. It is a thank-you, not a purchase.
 ```
 
 ### What's New (first release)
 
 ```
-First release.
+First release. Free to use.
 
 • Read Markdown with Mermaid diagrams rendered natively
 • Pinch to zoom diagrams
@@ -109,25 +121,25 @@ First release.
 ### Subtitle (30 max)
 
 ```
-mdr — Mermaid 図も、すぐ読める
+mdr — 無料、Mermaid 図も快適
 ```
 
 ### Promotional text (170 max)
 
 ```
-Mermaid 図をそのまま描画。ピンチで拡大でき、日本語の字形も正しく表示します。Rust 製のコアなので起動は一瞬。データはどこにも送信しません。
+無料で使えます。Mermaid 図をそのまま描画し、ピンチで拡大。日本語の字形も正しく表示します。Rust 製のコアなので起動は一瞬。データはどこにも送信しません。
 ```
 
 ### Keywords (100 max)
 
 ```
-マークダウン,mermaid,md,図,作図,ビューア,ドキュメント,メモ,readme,プレビュー,オフライン,技術文書,エディタ
+マークダウン,mermaid,md,図,作図,ビューア,ドキュメント,メモ,readme,プレビュー,オフライン,技術文書,無料
 ```
 
 ### Description (4000 max)
 
 ```
-Markdown を、読むためのアプリ。
+Markdown を、読むためのアプリ。広告なし、アカウント不要、無料。
 
 mdr は Markdown ファイルを開いて「文書」として見せます。テキストエディタでも、ブラウザのタブでも、中途半端なプレビューでもありません。Mermaid の図は描画され、表は整列し、日本語・中国語・韓国語は正しい字形で表示されます。描画エンジンは Rust のネイティブコードなので、起動は一瞬です。
 
@@ -144,9 +156,11 @@ mdr は Markdown ファイルを開いて「文書」として見せます。テ
 • 共有シート対応 — どのアプリからでも mdr に送れます
 • GitHub Flavored Markdown — 表、タスクリスト、脚注、打ち消し線、コードブロック
 
-プライバシー
+無料で、プライバシーも守ります
 
-mdr は何も収集しません。アカウント不要、サインイン不要、解析なし、トラッキングなし、広告なし。描画はすべて端末内で完結します。
+mdr は無料で使えます。上記の機能はすべて、インストールした瞬間から使えます。体験版も、サブスクリプションも、有料プランもありません。機能制限もありません。
+
+収集もしません。アカウント不要、サインイン不要、解析なし、トラッキングなし、広告なし。描画はすべて端末内で完結します。
 
 文書がウェブ上の画像を参照している場合、読み込みは既定でオフです。平文の http は公開サイトに対しては拒否し、localhost・プライベートアドレス・*.local に限って許可します。NAS や開発サーバーは使えて、それ以外は通しません。
 
@@ -158,15 +172,17 @@ mdr は何も収集しません。アカウント不要、サインイン不要�
 
 mdr は MIT ライセンスで、github.com/oxgenet/mdr で開発しています。Clever Cloud による原著作 mdr（MIT）を基にしています。
 
-開発の応援について
+コーヒー代で応援する
 
-設定には任意の「応援」項目があります。支払っても機能は何も解放されません。すべての機能は最初から入っています。感謝を伝えたい方のためのものです。
+mdr が役に立ったと感じたときだけ、設定からコーヒー一杯分を任意でお送りいただけます。
+
+支払っても機能は何も解放されません。専用機能も、バッジも、「サポーター」表示もありません。アプリが二度お願いすることもありません。買い物でなく、感謝を伝えるためのものです。
 ```
 
 ### What's New
 
 ```
-最初のリリースです。
+最初のリリースです。無料で使えます。
 
 • Mermaid 図をネイティブ描画した Markdown の表示
 • 図のピンチ拡大
@@ -276,9 +292,9 @@ Paste into App Review Information → Notes:
 mdr is a Markdown document reader. No account or sign-in is required — open any
 .md file from Files, or use the bundled sample, to see the full app.
 
-In-app purchases: the three items are optional tips ("Support the Developer").
-They are consumables and unlock nothing; every feature of the app is available
-without purchasing. This is intentional and is asserted by an automated test
+The app is free. In-app purchases: the three items are optional tips ("Support
+the Developer"). They are consumables and unlock nothing; every feature of the
+app is available without purchasing. This is intentional and is asserted by an automated test
 (StoreTests.testATipUnlocksNothing).
 
 Images linked from the web are disabled by default and can be enabled in
@@ -304,6 +320,47 @@ the tip jar ships dead.
 5. Attach the three in-app purchases (§8).
 6. Build 135, review notes, submit.
 
-Pricing is already set. The Small Business Program is separate, is Account
-Holder only, and is **not retroactive** — 15% versus 30% on every sale made
+Set the price to **Free** (App Store Connect → Pricing and Availability). The
+app was briefly configured at $0.99; free is the product concept — see §1.
+
+The Small Business Program is separate, is Account Holder only, and is **not
+retroactive** — 15% versus 30% on every sale made
 from enrolment onward, so it is worth doing before the first one, not after.
+
+---
+
+## 10. Google Play, from the same copy
+
+Play's listing is still empty too, and the wording should not diverge between
+the two stores — someone comparing them is comparing the same app. The
+description and What's New in §2 and §3 transfer verbatim. Only the short
+fields differ, because Play's limits do:
+
+| Play field | Limit | en-US | ja |
+|---|---|---|---|
+| App name | 30 | `Markdown Reader — mdr` | `Markdown Reader — mdr` |
+| Short description | 80 | see below | see below |
+| Full description | 4000 | §2 description, verbatim | §3 description, verbatim |
+
+Short description, en-US (80 max):
+
+```
+Free Markdown reader with native Mermaid diagrams. Offline, no ads, no account.
+```
+
+Short description, ja (80 max):
+
+```
+Mermaid 図をそのまま描画する無料の Markdown リーダー。オフライン、広告なし、アカウント不要。
+```
+
+Play has no keyword field — it indexes the title and both descriptions, so the
+keywords in §2 and §3 have nowhere to go and need not be reproduced.
+
+Play also wants a **feature graphic at 1024×500**, which the App Store has no
+equivalent of and which does not exist yet. Screenshots can be reused from
+`android/store/shots/`; the iOS captures are the wrong device frames for Play.
+
+One asymmetry that matters more than the copy: **on Play, free is a one-way
+door.** A free app can never be made paid. Going from paid to free is allowed
+and is equally permanent. Apple lets the price move in either direction.

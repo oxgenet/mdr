@@ -80,7 +80,12 @@ android {
         // Play rejects an upload that reuses a version code, so this has to
         // move on every release: pass -PversionCode=N from the release script.
         versionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
-        versionName = "0.4.1"
+        // Tracks the crate version in Cargo.toml, and must: the core reports
+        // its own version through JNI and MdrCoreInstrumentedTest asserts the
+        // two agree, which is how a stale libmdr.so in jniLibs gets caught.
+        // Apple forced 1.0.1 (a CFBundleShortVersionString train closes once a
+        // build on it is approved), so the crate moved and this follows.
+        versionName = "1.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += rustAbis }
     }

@@ -347,11 +347,49 @@ final class MdrAppUITests: XCTestCase {
         app.buttons["settingsDoneButton"].tap()
     }
 
+    /// Tap a Settings row, scrolling it into view first.
+    ///
+    /// `XCUIElement.tap()` on an element that exists but is scrolled off screen
+    /// fails without saying why, and the failure then surfaces further down as
+    /// whatever the next screen was supposed to contain. That is how a list
+    /// that merely needed scrolling reported a missing menu item instead.
+    private func tapSettingsCell(_ identifier: String,
+                                 file: StaticString = #filePath, line: UInt = #line) {
+        let cell = app.cells[identifier]
+        XCTAssertTrue(cell.waitForExistence(timeout: 10),
+                      "\(identifier) never appeared in Settings", file: file, line: line)
+        var scrolls = 0
+        while !cell.isHittable && scrolls < 4 {
+            app.tables.firstMatch.swipeUp()
+            scrolls += 1
+        }
+        XCTAssertTrue(cell.isHittable,
+                      "\(identifier) is in the hierarchy but not hittable after \(scrolls) scrolls "
+                      + "— a tap would fail silently", file: file, line: line)
+        cell.tap()
+    }
+
+    /// The picker screen itself, addressed without assuming what kind of view
+    /// it is. It is a `UITableViewController`, so the identifier set on its
+    /// `view` lands on the table — querying `otherElements` for it finds
+    /// nothing, and reports that as the screen never opening.
+    private var languagePicker: XCUIElement {
+        app.descendants(matching: .any)["languagePicker"]
+    }
+
     func testTheLanguagePickerOffersEveryTagAndPersists() {
         launchWithDocument()
         tapBarButton("settingsButton")
-        XCTAssertTrue(app.cells["languageRow"].waitForExistence(timeout: 10))
-        app.cells["languageRow"].tap()
+        tapSettingsCell("languageRow")
+
+        // Assert the picker is actually on screen before looking for rows in
+        // it. Without this the first missing id reads "lang_auto is not
+        // offered", which names a row that was never absent — the screen
+        // holding it simply never opened.
+        XCTAssertTrue(
+            languagePicker.waitForExistence(timeout: 10),
+            "the language picker did not open after tapping the language row"
+        )
 
         // The same five options as Android's spinner, in the same order.
         for id in ["lang_auto", "lang_ja", "lang_zh-Hans", "lang_zh-Hant", "lang_ko"] {
@@ -363,7 +401,9 @@ final class MdrAppUITests: XCTestCase {
                       "choosing a language should return to Settings")
 
         // Reopen the picker: the choice is ticked.
-        app.cells["languageRow"].tap()
+        tapSettingsCell("languageRow")
+        XCTAssertTrue(languagePicker.waitForExistence(timeout: 10),
+                      "the language picker did not reopen")
         XCTAssertTrue(app.cells["lang_ko"].waitForExistence(timeout: 10))
 
         // Put it back to auto so the run leaves no state behind.

@@ -20,14 +20,18 @@
         "containerPath": "container:MdrApp.xcodeproj",
         "identifier": "B64ACA447F7CABF94309BD85",
         "name": "MdrAppTests"
-      }
+      },
+      "enabled": false
     },
     {
       "target": {
         "containerPath": "container:MdrApp.xcodeproj",
         "identifier": "8DEC1653A1650CFA2B1DAB22",
         "name": "MdrUITests"
-      }
+      },
+      "selectedTests": [
+        "StoreShotTests/testCaptureStoreShots"
+      ]
     }
   ],
   "version": 1

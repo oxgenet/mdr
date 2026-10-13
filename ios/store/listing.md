@@ -293,8 +293,8 @@ does not.
 Paste into App Review Information → Notes:
 
 ```
-mdr is a free Markdown document reader. No account or sign-in is required —
-open any .md file from Files, or use the bundled sample, to see the whole app.
+mdr is a Markdown document reader. No account or sign-in is required — open
+any .md file from Files, or use the bundled sample, to see the whole app.
 
 The app is free. In-app purchases: the three items are optional tips ("Support
 the Developer"). They are consumables and unlock nothing; every feature of the

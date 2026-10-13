@@ -10,9 +10,12 @@ and console work that no script can perform.
 
 1. **Play Console → Create app**
    - App name: e.g. `mdr — Markdown Reader`
-   - Default language, App or game: **App**, Free or paid: **Free**
-     *(a free app can still take tips; a paid app cannot be switched to free later,
-     so decide this deliberately — see §6)*
+   - Default language, App or game: **App**, Free or paid: decide deliberately,
+     because Play makes this one-way: **a free app can never be changed to paid.**
+     Paid can be changed to free, and that direction is also permanent. A free
+     app can still take tips, so "free + tip jar" stays open either way.
+     *(Shipped as paid at $0.99 - see §6. Apple imposes no such restriction and
+     lets the price move in both directions.)*
 2. **Set the package name to `net.oxge.mdr`.** It is fixed at first upload and
    can never be changed, so check it against `android/app/build.gradle.kts`
    before submitting anything.

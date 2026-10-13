@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-13
+
+### Added
+- **iOS Share Extension accepts web links.** Sharing a page from Safari now
+  offers mdr. A link to a `.md` or `.txt` file is fetched and rendered; any
+  other page is saved as a note holding its title and the link. Previously the
+  activation rule accepted only text and files, so mdr never appeared in a
+  browser's share sheet at all
+- English (`en-US`) App Store listing. The name there is
+  **mdr — Markdown Reader**: plain `Markdown Reader` is held by another
+  account in that locale
+
+### Changed
+- Version jumps 0.4.1 → 1.0.1 to match what shipped. The App Store released
+  1.0 on 2026-09-29 while the crate still said 0.4.1, and Apple closes a
+  `CFBundleShortVersionString` train once it has been approved — so the next
+  build could not reuse it. `MdrHostShortVersion` tracks the crate version and
+  moves with it
+- Share Extension filenames no longer treat a heading like `# Chapter 3/4` as
+  a path, and a second share of the same title no longer overwrites the first
+  before the app has imported it
+
+### Fixed
+- iOS listing copy that described a paid app. mdr shipped at $0.99 and went
+  free on 2026-10-13; the wording written for those two weeks said features
+  were "included in the purchase price"
+
 ## [0.4.1] - 2026-09-16
 
 ### Added

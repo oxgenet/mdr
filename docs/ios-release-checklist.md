@@ -248,8 +248,17 @@ screenshots cannot be submitted.
 | App record `Markdown Reader` (net.oxge.mdr) | created 2026-09-18 |
 | App Store Connect API key | created; Key ID `C78543TCSU` |
 | App Group `group.net.oxge.mdr` | bound to both App IDs 2026-09-18 |
-| 3 in-app purchases | created, `READY_TO_SUBMIT` |
-| First TestFlight upload | **build 111 uploaded, processed `VALID`** |
+| 3 in-app purchases | **`APPROVED`** — reviewed with build 142, live |
+| First TestFlight upload | build 111 uploaded, processed `VALID` |
 | Build 111 beta state | internal `IN_BETA_TESTING`, external `READY_FOR_BETA_SUBMISSION` |
 | Purchase path verified locally | **no — skips under xcodebuild, see §6** |
 | Anything run on real hardware | yes — rendering, purchases, and the Share Extension (2026-09-29, iPhone 15) |
+| **Version 1.0** | **`READY_FOR_SALE`** — approved and released, build 142 |
+| Listing metadata (1.0, live) | `ja` only |
+| Listing metadata (1.0.1, draft) | `ja` **and** `en-US`, both complete: description, keywords, promotional text, subtitle, What's New, support + marketing URLs, copyright |
+| en-US app name | **`mdr — Markdown Reader`**, not `Markdown Reader` — that name is held by another account and the API refuses it with `DUPLICATE.DIFFERENT_ACCOUNT`. The two locales therefore carry different names, which is allowed |
+| 1.0.1 screenshots | `ja` inherited all 10. **`en-US` has none** — screenshot sets are per-localisation and a new locale starts empty |
+| `whatsNew` | empty, which is correct: it is for updates, and 1.0 is the first release |
+| Age rating | `FOUR_PLUS`, every questionnaire answer None, no unrestricted web access |
+| App Privacy | "Data Not Collected", published. **Portal-only** — the API exposes no `dataUsages` relationship on `apps`, so it cannot be read or written here |
+| Price | **Free** since 2026-10-13. It shipped at $0.99, so any copy that mentions a purchase price is stale |

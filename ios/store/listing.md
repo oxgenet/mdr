@@ -193,6 +193,10 @@ mdr が役に立ったと感じたときだけ、設定からコーヒー一杯�
 
 ---
 
+> **Price: Free since 2026-10-13.** It shipped at $0.99 on 2026-09-29 and was
+> changed two weeks later. Copy that says a feature is "included in the
+> purchase price" is stale — that wording was correct only for those two weeks.
+
 ## 4. URLs and copyright
 
 | Field | Value |
@@ -289,7 +293,7 @@ does not.
 Paste into App Review Information → Notes:
 
 ```
-mdr is a paid Markdown document reader. No account or sign-in is required —
+mdr is a free Markdown document reader. No account or sign-in is required —
 open any .md file from Files, or use the bundled sample, to see the whole app.
 
 The app is free. In-app purchases: the three items are optional tips ("Support

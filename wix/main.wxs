@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<!--
+  MSI installer source for the mdr CLI, shared by both release channels.
+
+  One file builds two different products. The staging and production installers
+  must be able to coexist on one machine - a tester runs `mdr` (production) and
+  `mdr-stg` (staging) side by side - so each channel gets its OWN UpgradeCode
+  and its OWN PATH-component GUID. Sharing either would make Windows treat the
+  two as the same product and let one uninstall the other.
+
+  Everything that differs between channels is a candle define, passed by the
+  release workflow:
+
+    BinName       mdr            | mdr-stg        (the installed .exe, minus .exe)
+    ProductName   mdr            | mdr (staging)  (Add/Remove Programs display)
+    Version       1.0.1          | 1.0.1          (MSI ProductVersion, x.y.z)
+    SourceExe     path to the built, already-renamed <BinName>.exe
+    UpgradeCode   per-channel GUID (stable forever; never reuse across channels)
+    PathGuid      per-channel GUID for the registry-less PATH component
+
+  Built with the WiX 3 toolset that ships on the GitHub windows runners:
+    candle main.wxs -dBinName=... -dProductName=... -dVersion=... \
+                    -dSourceExe=... -dUpgradeCode=... -dPathGuid=...
+    light  -ext WixUIExtension -cultures:en-us main.wixobj -o <BinName>.msi
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="$(var.ProductName)"
+           UpgradeCode="$(var.UpgradeCode)"
+           Manufacturer="Opusify IT Solutions Pvt. Ltd."
+           Language="1033"
+           Codepage="1252"
+           Version="$(var.Version)">
+
+    <Package Id="*"
+             Keywords="Installer"
+             Description="$(var.ProductName) - Markdown viewer/editor"
+             Manufacturer="Opusify IT Solutions Pvt. Ltd."
+             InstallerVersion="450"
+             Languages="1033"
+             Compressed="yes"
+             InstallScope="perMachine"
+             SummaryCodepage="1252" />
+
+    <!-- Replace any older build of the SAME channel; refuse to downgrade. -->
+    <MajorUpgrade
+      Schedule="afterInstallInitialize"
+      DowngradeErrorMessage="A newer version of $(var.ProductName) is already installed. Setup will now exit." />
+
+    <Media Id="1" Cabinet="media.cab" EmbedCab="yes" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <!-- e.g. C:\Program Files\mdr  or  C:\Program Files\mdr (staging) -->
+        <Directory Id="APPLICATIONFOLDER" Name="$(var.ProductName)">
+
+          <Component Id="BinComponent" Guid="*" Win64="yes">
+            <File Id="BinExe"
+                  Name="$(var.BinName).exe"
+                  Source="$(var.SourceExe)"
+                  KeyPath="yes" />
+          </Component>
+
+          <!--
+            Put the install dir on the system PATH. A component with no file
+            keypath needs a fixed GUID of its own - the one place a '*' GUID is
+            wrong - and it must differ per channel so the two installers do not
+            share-count the same PATH entry.
+          -->
+          <Component Id="PathComponent" Guid="$(var.PathGuid)" Win64="yes">
+            <CreateFolder />
+            <Environment Id="UpdatePath"
+                         Name="PATH"
+                         Value="[APPLICATIONFOLDER]"
+                         Permanent="no"
+                         Part="last"
+                         Action="set"
+                         System="yes" />
+          </Component>
+
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
+      <ComponentRef Id="BinComponent" />
+      <ComponentRef Id="PathComponent" />
+    </Feature>
+
+    <!-- A plain, license-free install flow; WixUI_Minimal needs WixUIExtension. -->
+    <Property Id="WIXUI_INSTALLDIR" Value="APPLICATIONFOLDER" />
+    <UIRef Id="WixUI_Minimal" />
+  </Product>
+</Wix>

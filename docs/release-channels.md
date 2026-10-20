@@ -83,10 +83,12 @@ managers that are enabled by repository variables.
 
 `wix/main.wxs` is one WiX 3 source shared by both channels; everything that
 differs is passed as a `candle` define (binary name, product name, version,
-source exe, and the two per-channel GUIDs). It is built on the GitHub
-`windows-latest` runner, which ships the WiX 3 toolset. The MSI `ProductVersion`
-is plain `x.y.z`: the `-stg.N` suffix is kept in the file name and download URL
-but dropped from that field, which MSI requires to be numeric.
+source exe, and the two per-channel GUIDs). The workflow installs the WiX 3
+toolset itself (`choco install wixtoolset`) rather than relying on a bundled
+copy — current GitHub `windows-latest` images no longer ship one — and puts
+`candle`/`light` on PATH. The MSI `ProductVersion` is plain `x.y.z`: the
+`-stg.N` suffix is kept in the file name and download URL but dropped from that
+field, which MSI requires to be numeric.
 
 ## Repository variables and secrets
 
@@ -105,10 +107,15 @@ Both channels write into the same tap repo, into `Formula/mdr.rb` and
 The MSI path has never run on CI yet (it is new here). On the first staging tag,
 confirm on the run:
 
-1. `candle`/`light` are found — if `$env:WIX` is unset on the runner image, add
-   a `Install WiX` step (`dotnet tool install --global wix` for WiX 4, adjusting
-   the invocation) before the MSI step.
-2. The produced `.msi` installs on a clean Windows box, puts `mdr-stg` on PATH,
+1. `choco install wixtoolset` succeeds and `candle`/`light` resolve on PATH.
+2. `candle`/`light` compile `wix/main.wxs` without ICE errors.
+3. The produced `.msi` installs on a clean Windows box, puts `mdr-stg` on PATH,
    and `mdr-stg --version` works.
-3. Installing the production MSI afterwards leaves `mdr-stg` intact, and vice
+4. Installing the production MSI afterwards leaves `mdr-stg` intact, and vice
    versa.
+
+The quickest way to run all of this is to push a throwaway staging tag
+(`v0.0.0-stg.1`), watch `release-stg.yml`, then delete the tag and its
+pre-release. That exercises the real Windows build and MSI on a clean runner —
+which is the only place the Windows binary can be built, since a dev machine
+with Smart App Control cannot compile it at all.

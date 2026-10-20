@@ -72,6 +72,17 @@ jobs:
         run: |
           Compress-Archive -Path "target/${{ matrix.target }}/release/${{ matrix.binary }}", "LICENSE", "NOTICE.md" -DestinationPath "${{ matrix.archive }}"
 
+      # Current GitHub windows images no longer ship the WiX 3 toolset, so
+      # install it rather than assuming $env:WIX. candle/light land on PATH.
+      - name: Install WiX 3
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install wixtoolset --no-progress -y
+          $bin = Get-ChildItem "C:\Program Files (x86)" -Directory -Filter "WiX Toolset*" |
+                 Sort-Object Name -Descending | Select-Object -First 1
+          "$($bin.FullName)\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
       # MSI for the production channel, from the shared wix/main.wxs. Installs
       # as mdr.exe with its own UpgradeCode, so it upgrades earlier mdr MSIs and
       # coexists with the staging installer (which carries a different one).
@@ -81,7 +92,7 @@ jobs:
         run: |
           $full = "$env:GITHUB_REF_NAME" -replace '^v',''
           $msiver = $full -replace '-.*',''
-          & "$env:WIX\bin\candle.exe" wix/main.wxs `
+          candle.exe wix/main.wxs `
             -dBinName="mdr" `
             -dProductName="mdr" `
             -dVersion="$msiver" `
@@ -89,7 +100,7 @@ jobs:
             -dUpgradeCode="BA86150A-CC18-40AF-861C-0B99F7134E7D" `
             -dPathGuid="C1393698-3CA3-4C27-9C38-C99BD5E480D4" `
             -o main.wixobj
-          & "$env:WIX\bin\light.exe" -ext WixUIExtension -cultures:en-us `
+          light.exe -ext WixUIExtension -cultures:en-us `
             main.wixobj -o "mdr-$full-x86_64.msi"
 
       - name: Upload artifact

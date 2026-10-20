@@ -1,0 +1,186 @@
+name: Release (staging)
+
+# The staging channel. Everything here installs as `mdr-stg`, never `mdr`, so a
+# tester can keep the production build and the staging build side by side.
+#
+#   Production  tag v1.2.3        -> release.yml  -> mdr      / Formula/mdr.rb
+#   Staging     tag v1.2.3-stg.N  -> this file    -> mdr-stg  / Formula/mdr-stg.rb
+#
+# Cut staging tags from `main` (the integration branch) and production tags from
+# `production`. The `-stg` tag is a GitHub pre-release; release.yml explicitly
+# excludes it so the two channels never both fire on one tag.
+on:
+  push:
+    tags:
+      - 'v*-stg*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  BIN: mdr-stg            # the installed binary name for this whole channel
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: mdr-stg-aarch64-apple-darwin.tar.gz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            archive: mdr-stg-x86_64-apple-darwin.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: mdr-stg-x86_64-pc-windows-msvc.zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      # The binary cargo produces is named `mdr`; the staging channel ships it
+      # as `mdr-stg`. Same bytes, different name - the distinction is the branch
+      # it was built from, not the code.
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cp LICENSE NOTICE.md "target/${{ matrix.target }}/release/"
+          cd "target/${{ matrix.target }}/release"
+          cp mdr "${BIN}"
+          tar czf "../../../${{ matrix.archive }}" "${BIN}" LICENSE NOTICE.md
+
+      - name: Package ZIP (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item "target/${{ matrix.target }}/release/mdr.exe" "target/${{ matrix.target }}/release/$env:BIN.exe"
+          Compress-Archive -Force `
+            -Path "target/${{ matrix.target }}/release/$env:BIN.exe", "LICENSE", "NOTICE.md" `
+            -DestinationPath "${{ matrix.archive }}"
+
+      # MSI, built from the shared wix/main.wxs with the staging defines. The MSI
+      # ProductVersion must be plain x.y.z, so the -stg.N suffix is dropped for
+      # that field only; the file name and download URL keep the full tag.
+      - name: Package MSI (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $full = "$env:GITHUB_REF_NAME" -replace '^v',''      # 1.2.3-stg.4
+          $msiver = $full -replace '-.*',''                    # 1.2.3
+          $exe = "target/${{ matrix.target }}/release/$env:BIN.exe"
+          & "$env:WIX\bin\candle.exe" wix/main.wxs `
+            -dBinName="$env:BIN" `
+            -dProductName="mdr (staging)" `
+            -dVersion="$msiver" `
+            -dSourceExe="$exe" `
+            -dUpgradeCode="4B278D67-F6BA-40BF-89EB-ABCF166A02AD" `
+            -dPathGuid="541016A3-E240-424A-9DA5-DB381116289E" `
+            -o main.wixobj
+          & "$env:WIX\bin\light.exe" -ext WixUIExtension -cultures:en-us `
+            main.wixobj -o "mdr-stg-$full-x86_64.msi"
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}
+
+      - name: Upload MSI
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdr-stg-msi
+          path: '*.msi'
+
+  release:
+    name: Create staging pre-release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create GitHub pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          generate_release_notes: true
+          files: artifacts/**/*
+
+  update-homebrew:
+    name: Update Homebrew tap (mdr-stg)
+    needs: release
+    runs-on: ubuntu-latest
+    if: ${{ vars.HOMEBREW_TAP_ENABLED == 'true' }}
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Compute SHA256 and version
+        id: meta
+        run: |
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "sha_aarch64=$(sha256sum artifacts/mdr-stg-aarch64-apple-darwin.tar.gz/mdr-stg-aarch64-apple-darwin.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "sha_x86_64=$(sha256sum artifacts/mdr-stg-x86_64-apple-darwin.tar.gz/mdr-stg-x86_64-apple-darwin.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate and push formula
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHA_AARCH64: ${{ steps.meta.outputs.sha_aarch64 }}
+          SHA_X86_64: ${{ steps.meta.outputs.sha_x86_64 }}
+        run: |
+          # mdr-stg installs its own binary name, so it deliberately does NOT
+          # conflict with mdr: both are meant to be installed at once.
+          cat > mdr-stg.rb <<EOF
+          class MdrStg < Formula
+            desc "Markdown viewer/editor (STAGING channel of oxgenet/mdr) - installs as mdr-stg"
+            homepage "https://github.com/oxgenet/mdr"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/oxgenet/mdr/releases/download/v${VERSION}/mdr-stg-aarch64-apple-darwin.tar.gz"
+                sha256 "${SHA_AARCH64}"
+              else
+                url "https://github.com/oxgenet/mdr/releases/download/v${VERSION}/mdr-stg-x86_64-apple-darwin.tar.gz"
+                sha256 "${SHA_X86_64}"
+              end
+            end
+
+            def install
+              bin.install "mdr-stg"
+            end
+
+            test do
+              system "#{bin}/mdr-stg", "--version"
+            end
+          end
+          EOF
+
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/oxgenet/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          cp mdr-stg.rb tap/Formula/mdr-stg.rb
+          cd tap
+          git config user.email "tkykszk@gmail.com"
+          git config user.name "oxgenet mdr CI"
+          git add Formula/mdr-stg.rb
+          git diff --cached --quiet || git commit -m "Update mdr-stg to ${VERSION}"
+          git push

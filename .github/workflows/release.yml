@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+      # Pre-release tags belong to the staging channel (release-stg.yml). A
+      # staging tag like v1.2.3-stg.4 matches 'v*' too, so exclude it here or
+      # both workflows would fire on one tag and fight over the release.
+      - '!v*-stg*'
+      - '!v*-rc*'
+      - '!v*-beta*'
 
 permissions:
   contents: write
@@ -66,11 +72,38 @@ jobs:
         run: |
           Compress-Archive -Path "target/${{ matrix.target }}/release/${{ matrix.binary }}", "LICENSE", "NOTICE.md" -DestinationPath "${{ matrix.archive }}"
 
+      # MSI for the production channel, from the shared wix/main.wxs. Installs
+      # as mdr.exe with its own UpgradeCode, so it upgrades earlier mdr MSIs and
+      # coexists with the staging installer (which carries a different one).
+      - name: Package MSI (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $full = "$env:GITHUB_REF_NAME" -replace '^v',''
+          $msiver = $full -replace '-.*',''
+          & "$env:WIX\bin\candle.exe" wix/main.wxs `
+            -dBinName="mdr" `
+            -dProductName="mdr" `
+            -dVersion="$msiver" `
+            -dSourceExe="target/${{ matrix.target }}/release/mdr.exe" `
+            -dUpgradeCode="BA86150A-CC18-40AF-861C-0B99F7134E7D" `
+            -dPathGuid="C1393698-3CA3-4C27-9C38-C99BD5E480D4" `
+            -o main.wixobj
+          & "$env:WIX\bin\light.exe" -ext WixUIExtension -cultures:en-us `
+            main.wixobj -o "mdr-$full-x86_64.msi"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.archive }}
           path: ${{ matrix.archive }}
+
+      - name: Upload MSI
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdr-msi
+          path: '*.msi'
 
   build-macos-app:
     name: Build Mdr.app (universal)

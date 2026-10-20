@@ -105,7 +105,7 @@ jobs:
             -dUpgradeCode="BA86150A-CC18-40AF-861C-0B99F7134E7D" `
             -dPathGuid="C1393698-3CA3-4C27-9C38-C99BD5E480D4" `
             -o main.wixobj
-          & "$env:WIX_BIN\light.exe" -ext WixUIExtension -cultures:en-us `
+          & "$env:WIX_BIN\light.exe" -sval -ext WixUIExtension -cultures:en-us `
             main.wixobj -o "mdr-$full-x86_64.msi"
 
       - name: Upload artifact

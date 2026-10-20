@@ -104,7 +104,7 @@ jobs:
             -dUpgradeCode="4B278D67-F6BA-40BF-89EB-ABCF166A02AD" `
             -dPathGuid="541016A3-E240-424A-9DA5-DB381116289E" `
             -o main.wixobj
-          & "$env:WIX_BIN\light.exe" -ext WixUIExtension -cultures:en-us `
+          & "$env:WIX_BIN\light.exe" -sval -ext WixUIExtension -cultures:en-us `
             main.wixobj -o "mdr-stg-$full-x86_64.msi"
 
       - name: Upload archive

@@ -27,6 +27,9 @@ Markdown ビューア／エディタの OSS 調査から、mdr フォーク（ox
 - **モバイルの契約テストは「コアを 1 回 Rust で証明し、各バインディングが壊していないかだけを見る」**: `core::page::render_page()` を唯一の実装にして、`src/ffi.rs`(C ABI/iOS)・`src/jni_bridge.rs`(JNI/Android) はその薄い包みにする。テストは Rust ユニット / Android instrumented / iOS XCTest で **テスト名まで揃えて対にする**。Markdown の意味論を Swift や Kotlin で再検証しない。
 - **instrumented テストの結果は JUnit XML を `classname` で集計する**: ランナーは全クラスをまとめた `<testsuite>` を 1 つ吐き、その `name` は最初に走ったクラス名になる。suite 名を信じるとクラス別集計が嘘になる。
 
+- **1 リポジトリで staging/prod を「別名バイナリ」で共存させる型（2026-10-20）**: 別リポジトリにせず、`main`=staging / `production`=prod のブランチ運用にし、リリースは**タグで**切る。チャンネルはタグの接尾辞で分ける（`v1.2.3`=prod、`v1.2.3-stg.N`=prerelease=staging）。同じコードを別名で配る（`mdr` / `mdr-stg`）ので、テスターが両方を同時に入れられる。Homebrew は formula がインストールするバイナリ名が違えば `conflicts_with` 不要で共存。**GitHub Actions のタグフィルタは `!` 否定を書けるので、prod 側は `['v*', '!v*-stg*', '!v*-rc*', '!v*-beta*']` にしないと、staging タグが `v*` にも一致して両ワークフローが同じタグで発火し競合する。**
+- **WiX の MSI を staging/prod で共存させるには UpgradeCode と「ファイルを持たないコンポーネント」の GUID を**チャンネルごとに別**にする**: 同じ UpgradeCode だと Windows は同一製品とみなし、一方の MSI がもう一方をアンインストールする。PATH を通すだけの `Environment` コンポーネントは keypath となるファイルが無いので GUID に `*`（自動）を使えず固定 GUID が必須で、これもチャンネル間で共有すると参照カウントが壊れる。1 つの `wix/main.wxs` を candle の `-d` 定義（BinName/ProductName/Version/SourceExe/UpgradeCode/PathGuid）で両チャンネルに使い回すのが最小構成。MSI の ProductVersion は数値 `x.y.z` のみで、`-stg.N` はファイル名と URL には残すが ProductVersion からは落とす。GitHub の windows ランナーには WiX3 が同梱（`$env:WIXin\candle.exe` / `light.exe`）。
+
 ## 失敗（再発させない）
 
 - **gh の 401 を「トークン失効」と誤診し、再ログインを 3 回求めた（最重要）**: 真因は `security find-generic-password` が **exit 36（User interaction is not allowed）** を返し、Claude のプロセスからキーチェーンが読めないこと。さらに `gh auth token 2>&1 | wc -c` の 36 文字を「トークン長」と報告したが、実体は stderr の `no oauth token found for github.com`（35 文字＋改行）だった。ユーザーのターミナルでは同じ gh・同じ HOME・同じキーチェーンで正常だった。**「自分の経路で読めない」と「外部で無効」は別**。対策は `~/.claude/skills/gh-keychain-from-claude` に集約。

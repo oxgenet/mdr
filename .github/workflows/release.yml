@@ -97,7 +97,7 @@ jobs:
         run: |
           $full = "$env:GITHUB_REF_NAME" -replace '^v',''
           $msiver = $full -replace '-.*',''
-          & "$env:WIX_BIN\candle.exe" wix/main.wxs `
+          & "$env:WIX_BIN\candle.exe" -arch x64 wix/main.wxs `
             -dBinName="mdr" `
             -dProductName="mdr" `
             -dVersion="$msiver" `

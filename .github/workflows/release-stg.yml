@@ -96,7 +96,7 @@ jobs:
           $full = "$env:GITHUB_REF_NAME" -replace '^v',''      # 1.2.3-stg.4
           $msiver = $full -replace '-.*',''                    # 1.2.3
           $exe = "target/${{ matrix.target }}/release/$env:BIN.exe"
-          & "$env:WIX_BIN\candle.exe" wix/main.wxs `
+          & "$env:WIX_BIN\candle.exe" -arch x64 wix/main.wxs `
             -dBinName="$env:BIN" `
             -dProductName="mdr (staging)" `
             -dVersion="$msiver" `

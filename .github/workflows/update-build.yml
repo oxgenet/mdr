@@ -1,14 +1,18 @@
 name: Update deps & build
 
 # Refreshes every dependency to its newest compatible version (cargo update),
-# then builds the webview viewer/editor for macOS and Windows.
-# Runs on push to main, weekly, and on demand. Artifacts are attached to the run;
-# tag pushes (v*) additionally publish a GitHub Release.
+# then builds the webview viewer/editor for macOS and Windows. Artifacts are
+# attached to each run for inspection.
+#
+# It does NOT publish GitHub Releases. release.yml (stable tags) and
+# release-stg.yml (-stg tags) own that. This workflow used to also fire on v*
+# tags and publish its own release, which raced those two on the same tag and
+# produced "Too many retries" when both hit the releases API at once - a real
+# collision seen on the first staging tag, and latent for production.
 
 on:
   push:
     branches: [main]
-    tags: ['v*']
   schedule:
     - cron: '0 3 * * 1'   # every Monday 03:00 UTC
   workflow_dispatch:
@@ -241,20 +245,6 @@ jobs:
           git commit -q -m "Windows screenshots for ${SHA}" || echo "nothing to commit"
           git push -q origin ci-screenshots
 
-  release:
-    name: Publish release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: mdr-*
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: artifacts/**/*
+  # The release job that used to live here was removed: it duplicated release.yml
+  # and raced it (and release-stg.yml) on the same tag. Releases are published by
+  # release.yml for stable tags and release-stg.yml for -stg tags.

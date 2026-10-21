@@ -27,6 +27,10 @@ Markdown ビューア／エディタの OSS 調査から、mdr フォーク（ox
 - **モバイルの契約テストは「コアを 1 回 Rust で証明し、各バインディングが壊していないかだけを見る」**: `core::page::render_page()` を唯一の実装にして、`src/ffi.rs`(C ABI/iOS)・`src/jni_bridge.rs`(JNI/Android) はその薄い包みにする。テストは Rust ユニット / Android instrumented / iOS XCTest で **テスト名まで揃えて対にする**。Markdown の意味論を Swift や Kotlin で再検証しない。
 - **instrumented テストの結果は JUnit XML を `classname` で集計する**: ランナーは全クラスをまとめた `<testsuite>` を 1 つ吐き、その `name` は最初に走ったクラス名になる。suite 名を信じるとクラス別集計が嘘になる。
 
+- **同じタグに複数のワークフローが反応して releases API を取り合うと `softprops/action-gh-release` が「Too many retries.」で落ちる（2026-10-21）**: mdr には `v*` タグで走るワークフローが release.yml 以外に update-build.yml もあり、両者が同じタグの GitHub Release を同時に作ろうとして衝突していた。権限（contents: write）でもネットワークでもなく、**同一リリースへの同時アクセス**が原因。症状はビルドは全部成功なのに publish ジョブだけ落ちる。切り分けは `releases/tags/<tag>` と `releases/<id>/assets` を叩いて「誰がどの資産を上げたか」を見る——別名（mdr-* と mdr-stg-*）が混在していれば別ワークフローが相乗りしている証拠。**リリース発行は 1 本のワークフローに集約し、他のタグトリガは外す。**
+- **WiX の ICE 検証はローカルでは system policy で自動スキップされ、CI では走る**: ローカルで `light` が exit 0（`LGHT1105: Validation could not run due to system policy` の警告のみ）でも、CI では ICE が走って別のチェックで落ちうる。「ローカルで通るのに CI で MSI リンクだけ失敗」はこれを疑う。CI では `light -sval` で ICE をスキップすれば既知の良ビルドと揃う。ICE は lint であり、インストール可否には影響しない。
+- **GitHub の windows ランナーは WiX を同梱しなくなった**: `$env:WIX` 前提は壊れる。choco 版はパッケージ名/バージョンと PATH 伝播が不安定だった。確実なのは wixtoolset/wix3 の `wix314-binaries.zip`（インストーラ不要の署名済みバイナリ）を落として candle/light をフルパスで叩くこと。この署名済みバイナリは SAC 有効な Windows でもローカル実行でき、stub の exe を食わせれば wxs の検証を手元で完結できる（exe の中身は MSI 作成に無関係）。
+
 ## 失敗（再発させない）
 
 - **gh の 401 を「トークン失効」と誤診し、再ログインを 3 回求めた（最重要）**: 真因は `security find-generic-password` が **exit 36（User interaction is not allowed）** を返し、Claude のプロセスからキーチェーンが読めないこと。さらに `gh auth token 2>&1 | wc -c` の 36 文字を「トークン長」と報告したが、実体は stderr の `no oauth token found for github.com`（35 文字＋改行）だった。ユーザーのターミナルでは同じ gh・同じ HOME・同じキーチェーンで正常だった。**「自分の経路で読めない」と「外部で無効」は別**。対策は `~/.claude/skills/gh-keychain-from-claude` に集約。
